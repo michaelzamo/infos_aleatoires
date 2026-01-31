@@ -1,4 +1,0 @@
-flask
-feedparser
-beautifulsoup4
-gunicorn
