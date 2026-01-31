@@ -1,4 +1,8 @@
+[Actualités]
 https://www.lemonde.fr/rss/une.xml
 https://www.courrierinternational.com/feed/all/rss.xml
 https://www.pourlascience.fr/rss.xml
 https://legrandcontinent.eu/fr/feed/
+
+[Actualidades]
+https://legrandcontinent.eu/es/feed
