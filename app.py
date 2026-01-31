@@ -37,9 +37,11 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Info Aléatoire</title>
         <style>
-            /* --- 1. COULEURS DE BASE (Base Theme) --- */
+            /* --- 1. COULEURS DE BASE --- */
             :root {
-                /* Fonds et textes */
+                /* Échelle de police par défaut (1 = 100%) */
+                --font-scale: 1;
+
                 --bg-body: #f0f2f5;
                 --bg-card: #ffffff;
                 --text-main: #333333;
@@ -49,14 +51,13 @@ def home():
                 --select-border: #ddd;
                 --shadow: rgba(0,0,0,0.05);
 
-                /* Couleurs Sémantiques (Par défaut: Standard) */
-                --col-primary: #007bff;      /* Bleu standard */
-                --col-success: #28a745;      /* Vert standard */
-                --col-error: #dc3545;        /* Rouge standard */
-                --col-link-read: #28a745;    /* Vert pour bouton lire */
+                --col-primary: #007bff;
+                --col-success: #28a745;
+                --col-error: #dc3545;
+                --col-link-read: #28a745;
             }
             
-            /* --- 2. MODE SOMBRE (Dark Mode) --- */
+            /* --- 2. MODE SOMBRE --- */
             body.dark-mode {
                 --bg-body: #121212;
                 --bg-card: #1e1e1e;
@@ -68,34 +69,24 @@ def home():
                 --shadow: rgba(0,0,0,0.5);
             }
 
-            /* --- 3. PROFILS DALTONISME (Overrides) --- */
-            
-            /* Protanopie (Rouge absent) & Deutéranopie (Vert absent) 
-               Solution : Utiliser Bleu vs Orange/Jaune */
+            /* --- 3. PROFILS DALTONISME --- */
             body.protanopia, body.deuteranopia {
-                --col-primary: #0072B2;      /* Bleu profond */
-                --col-success: #56B4E9;      /* Bleu ciel (distinct de l'orange) */
-                --col-error: #D55E00;        /* Vermillon/Orange fort */
-                --col-link-read: #0072B2;    /* Bouton lire en bleu */
+                --col-primary: #0072B2;
+                --col-success: #56B4E9;
+                --col-error: #D55E00;
+                --col-link-read: #0072B2;
             }
-
-            /* Tritanopie (Bleu absent - confusion bleu/vert et jaune/violet)
-               Solution : Utiliser Teal/Turquoise vs Rouge/Rose */
             body.tritanopia {
                 --col-primary: #000000;      
-                --col-success: #009E73;      /* Vert bleuté (Teal) */
-                --col-error: #CC79A7;        /* Rose rougeâtre */
+                --col-success: #009E73;
+                --col-error: #CC79A7;
                 --col-link-read: #009E73;
             }
-
-            /* Achromatopsie (Vision niveaux de gris) 
-               Solution : Contraste maximal */
             body.achromatopsia {
                 --col-primary: #000000;
-                --col-success: #000000;      /* Noir (on se fie aux icônes) */
-                --col-error: #000000;        /* Noir */
+                --col-success: #000000;
+                --col-error: #000000;
                 --col-link-read: #444444;
-                /* En mode sombre, on inverse */
             }
             body.dark-mode.achromatopsia {
                 --col-primary: #ffffff;
@@ -111,6 +102,9 @@ def home():
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
                 background-color: var(--bg-body); color: var(--text-main);
                 transition: background-color 0.3s, color 0.3s;
+                
+                /* C'est ici que la magie de la taille opère */
+                font-size: calc(16px * var(--font-scale));
             }
 
             .card { 
@@ -128,17 +122,28 @@ def home():
             }
 
             /* Zone de réglages (Accessibilité) */
-            .settings-row {
-                display: flex; justify-content: flex-end; margin-bottom: 20px;
+            .settings-container {
+                display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;
+                background: var(--tag-bg); padding: 10px; border-radius: 8px;
             }
+            .settings-row {
+                display: flex; justify-content: space-between; align-items: center;
+            }
+            .setting-label { font-size: 0.8rem; color: var(--text-sub); font-weight: bold;}
+
             .a11y-select {
                 padding: 5px; font-size: 0.8rem; border-radius: 4px;
                 border: 1px solid var(--select-border);
                 background-color: var(--select-bg); color: var(--text-main);
             }
+            
+            /* Slider de police */
+            .font-slider-group { display: flex; align-items: center; gap: 10px; }
+            input[type=range] { width: 100px; cursor: pointer; }
+            .font-icon { font-weight: bold; color: var(--text-sub); }
 
             /* Menu Catégories */
-            .select-container { margin-bottom: 20px; }
+            .select-container { margin-bottom: 20px; margin-top: 10px;}
             .cat-select {
                 padding: 10px 15px; font-size: 1rem; border-radius: 8px; 
                 border: 1px solid var(--select-border);
@@ -148,10 +153,9 @@ def home():
 
             .source-tag { background: var(--tag-bg); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; color: var(--text-sub); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;}
             
-            h2 { color: var(--text-main); }
-            p { color: var(--text-sub); }
+            h2 { color: var(--text-main); margin: 15px 0; font-size: 1.3em; }
+            p { color: var(--text-sub); line-height: 1.6; }
 
-            /* Boutons utilisant les variables dynamiques */
             .btn { 
                 background-color: var(--col-primary); 
                 color: white; padding: 15px 30px; text-decoration: none; border-radius: 50px; 
@@ -162,7 +166,6 @@ def home():
             
             .btn-test { background: none; border: none; color: var(--text-sub); margin-top: 30px; font-size: 0.8rem; cursor: pointer; text-decoration: underline; opacity: 0.7;}
             
-            /* Résultats utilisant les variables dynamiques */
             #test-results { display: none; text-align: left; margin-top: 20px; background: var(--tag-bg); padding: 15px; border-radius: 8px; font-size: 0.85rem; max-height: 200px; overflow-y: auto; }
             .result-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--select-border); }
             
@@ -177,14 +180,25 @@ def home():
                 <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Mode Sombre/Clair">🌓</button>
             </div>
 
-            <div class="settings-row">
-                <select id="colorBlindSelect" class="a11y-select" onchange="changeColorProfile()">
-                    <option value="normal">Vision Normale</option>
-                    <option value="protanopia">Protanopie (Rouge-)</option>
-                    <option value="deuteranopia">Deutéranopie (Vert-)</option>
-                    <option value="tritanopia">Tritanopie (Bleu-)</option>
-                    <option value="achromatopsia">Monochromatie</option>
-                </select>
+            <div class="settings-container">
+                <div class="settings-row">
+                    <span class="setting-label">VISION</span>
+                    <select id="colorBlindSelect" class="a11y-select" onchange="changeColorProfile()">
+                        <option value="normal">Normale</option>
+                        <option value="protanopia">Protanopie (R-)</option>
+                        <option value="deuteranopia">Deutéranopie (V-)</option>
+                        <option value="tritanopia">Tritanopie (B-)</option>
+                        <option value="achromatopsia">Mono</option>
+                    </select>
+                </div>
+                <div class="settings-row">
+                    <span class="setting-label">TAILLE</span>
+                    <div class="font-slider-group">
+                        <span class="font-icon" style="font-size: 0.8rem">A</span>
+                        <input type="range" id="fontSlider" min="0.8" max="1.5" step="0.1" value="1" oninput="changeFontSize()">
+                        <span class="font-icon" style="font-size: 1.2rem">A</span>
+                    </div>
+                </div>
             </div>
             
             <div class="select-container">
@@ -207,47 +221,55 @@ def home():
         </div>
 
         <script>
-            // --- GESTION DU THÈME & ACCESSIBILITÉ ---
+            // --- GESTION DES REGLAGES (THEME, COULEURS, POLICE) ---
             
-            // 1. Initialisation au chargement
+            // Initialisation au chargement
             const savedTheme = localStorage.getItem('theme');
             const savedProfile = localStorage.getItem('colorProfile') || 'normal';
+            const savedFontScale = localStorage.getItem('fontScale') || '1';
 
-            if (savedTheme === 'dark') {
-                document.body.classList.add('dark-mode');
-            }
+            // 1. Theme
+            if (savedTheme === 'dark') document.body.classList.add('dark-mode');
             
-            // Applique le profil de daltonisme sauvegardé
+            // 2. Daltonisme
             applyColorProfile(savedProfile);
             document.getElementById('colorBlindSelect').value = savedProfile;
 
-            // 2. Fonction Mode Sombre (Reste la même)
+            // 3. Police
+            applyFontSize(savedFontScale);
+            document.getElementById('fontSlider').value = savedFontScale;
+
+
+            // --- Fonctions ---
             function toggleTheme() {
-                const body = document.body;
-                body.classList.toggle('dark-mode');
-                localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
+                document.body.classList.toggle('dark-mode');
+                localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
             }
 
-            // 3. Fonction Profils Daltonisme
             function changeColorProfile() {
-                const select = document.getElementById('colorBlindSelect');
-                const profile = select.value;
+                const profile = document.getElementById('colorBlindSelect').value;
                 applyColorProfile(profile);
                 localStorage.setItem('colorProfile', profile);
             }
 
             function applyColorProfile(profile) {
-                // On retire toutes les classes de vision
                 document.body.classList.remove('protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia');
-                
-                // On ajoute celle choisie (si ce n'est pas "normal")
-                if (profile !== 'normal') {
-                    document.body.classList.add(profile);
-                }
+                if (profile !== 'normal') document.body.classList.add(profile);
             }
 
-            // --- LOGIQUE METIER (FLUX) ---
+            function changeFontSize() {
+                const scale = document.getElementById('fontSlider').value;
+                applyFontSize(scale);
+                localStorage.setItem('fontScale', scale);
+            }
 
+            function applyFontSize(scale) {
+                // On modifie la variable CSS globale
+                document.documentElement.style.setProperty('--font-scale', scale);
+            }
+
+
+            // --- LOGIQUE METIER (FLUX) ---
             function resetView() {
                 const category = document.getElementById('categorySelect').value;
                 document.getElementById('content').innerHTML = '<p>Catégorie : ' + category + '</p>';
@@ -272,7 +294,6 @@ def home():
                     btn.disabled = false; btn.style.opacity = "1";
 
                     if (data.error) { 
-                        // Note : data.error s'affichera en rouge (ou orange/noir selon le profil)
                         contentDiv.innerHTML = '<p class="status-err">' + data.error + '</p>'; 
                         return; 
                     }
@@ -302,11 +323,9 @@ def home():
 
                     let html = '';
                     results.forEach(item => {
-                        // Les classes status-ok et status-err changeront de couleur selon le profil CSS
                         const icon = item.valid ? '✅' : '❌';
                         const statusClass = item.valid ? 'status-ok' : 'status-err';
                         const statusText = item.valid ? 'VALIDE' : 'ERREUR';
-                        
                         html += `
                         <div class="result-item">
                             <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="${item.url}">${item.url.replace('https://', '')}</span>
@@ -320,6 +339,9 @@ def home():
     </body>
     </html>
     ''', categories=categories)
+
+# ... Le reste du fichier (routes get_random, test_sources) est identique ...
+# ... Copiez les routes du message précédent si besoin ...
 
 @app.route('/get-random')
 def get_random():
