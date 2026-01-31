@@ -10,7 +10,6 @@ https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada
 https://www.eldiario.es/rss/
 
 [ニュース]
-https://www.reddit.com/r/NHKEasyNews/.rss
 http://rss.asahi.com/rss/asahi/newsheadlines.rdf
 https://news.livedoor.com/topics/rss/top.xml
 http://feeds.feedburner.com/SdJapan
