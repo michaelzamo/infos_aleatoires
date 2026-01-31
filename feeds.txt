@@ -6,12 +6,15 @@ https://legrandcontinent.eu/fr/feed/
 https://www.nationalgeographic.fr/api/rss/latest_contents.xml
 https://www.slate.fr/rss.xml
 https://theconversation.com/articles.atom?language=fr
+https://www.france24.com/fr/rss
+https://atlasflux.saynete.net/atlas_des_flux_rss_fra_dedie_lemondediplomatique.xml
 
 [Actualidades]
 https://legrandcontinent.eu/es/feed
 https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada
 https://www.eldiario.es/rss/
 https://theconversation.com/articles.atom?language=es
+https://www.france24.com/es/rss
 
 [ニュース]
 http://rss.asahi.com/rss/asahi/newsheadlines.rdf
