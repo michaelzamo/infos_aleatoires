@@ -6,3 +6,7 @@ https://legrandcontinent.eu/fr/feed/
 
 [Actualidades]
 https://legrandcontinent.eu/es/feed
+
+[ニュース]
+https://www.reddit.com/r/NHKEasyNews/.rss
+https://www.japantimes.co.jp/feed/
