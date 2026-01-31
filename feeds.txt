@@ -7,7 +7,7 @@ https://www.nationalgeographic.fr/api/rss/latest_contents.xml
 https://www.slate.fr/rss.xml
 https://theconversation.com/articles.atom?language=fr
 https://www.france24.com/fr/rss
-https://atlasflux.saynete.net/atlas_des_flux_rss_fra_dedie_lemondediplomatique.xml
+https://www.monde-diplomatique.fr/rss/
 
 [Actualidades]
 https://legrandcontinent.eu/es/feed
