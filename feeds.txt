@@ -1,2 +1,3 @@
 https://www.lemonde.fr/rss/une.xml
-https://www.courrierinternational.com/feed/category/6260/rss.xml
+https://www.courrierinternational.com/feed/all/rss.xml
+https://www.pourlascience.fr/rss.xml
