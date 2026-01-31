@@ -5,33 +5,48 @@ import os
 
 app = Flask(__name__)
 
-# CONFIGURATION DES CATÉGORIES
-# Format : "Nom affiché dans le menu" : "Nom du fichier.txt"
-SOURCES_FILES = {
-    "Actualités Générales": "feeds_francais.txt",
-    "Actualidades": "feeds_espanol.txt"
-}
+def load_feeds_config():
+    """
+    Lit le fichier feeds.txt et le transforme en dictionnaire.
+    Structure retournée : {'Nom Catégorie': ['url1', 'url2'], ...}
+    """
+    feeds_data = {}
+    current_category = None
 
-def get_feeds_from_file(filename):
-    """Lit un fichier spécifique et retourne une liste d'URLs."""
-    feed_list = []
-    # Sécurité : on empêche de lire n'importe quel fichier du système
-    if filename not in SOURCES_FILES.values():
-        return []
-        
     try:
-        with open(filename, 'r') as f:
+        # encoding='utf-8' est important pour les accents dans les noms de catégories
+        with open('feeds.txt', 'r', encoding='utf-8') as f:
             for line in f:
-                clean_line = line.strip()
-                if clean_line and not clean_line.startswith('#'):
-                    feed_list.append(clean_line)
+                line = line.strip()
+                
+                # Si la ligne est vide ou est un commentaire, on passe
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Si c'est une catégorie entre crochets [Nom]
+                if line.startswith('[') and line.endswith(']'):
+                    current_category = line[1:-1] # On enlève les crochets
+                    feeds_data[current_category] = []
+                
+                # Sinon, c'est une URL (si on a déjà une catégorie définie)
+                elif current_category:
+                    feeds_data[current_category].append(line)
+                    
     except FileNotFoundError:
-        return []
-    return feed_list
+        # Fallback si le fichier n'existe pas
+        return {"Défaut": ["https://www.lemonde.fr/rss/une.xml"]}
+    
+    return feeds_data
 
 @app.route('/')
 def home():
-    # On passe la liste des catégories au HTML pour créer le menu
+    feeds_config = load_feeds_config()
+    categories = list(feeds_config.keys())
+    
+    # S'il n'y a pas de catégories, on met un message par défaut
+    if not categories:
+        categories = ["Aucune catégorie"]
+
     return render_template_string('''
     <!DOCTYPE html>
     <html lang="fr">
@@ -44,27 +59,18 @@ def home():
             .card { background: white; padding: 2rem; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); max-width: 500px; text-align: center; width: 100%; position: relative; }
             h1 { font-size: 1.5rem; color: #333; margin-bottom: 1rem; }
             
-            /* Style du menu déroulant */
             .select-container { margin-bottom: 20px; }
             select {
-                padding: 10px 15px;
-                font-size: 1rem;
-                border-radius: 8px;
-                border: 1px solid #ddd;
-                background-color: #f9f9f9;
-                width: 100%;
-                max-width: 300px;
-                cursor: pointer;
-                outline: none;
+                padding: 10px 15px; font-size: 1rem; border-radius: 8px; border: 1px solid #ddd;
+                background-color: #f9f9f9; width: 100%; max-width: 300px; cursor: pointer; outline: none;
             }
             select:focus { border-color: #007bff; }
 
             .source-tag { background: #e9ecef; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; color: #555; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;}
-            
             .btn { background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 50px; display: inline-block; margin-top: 20px; cursor: pointer; border: none; font-size: 1rem; font-weight: 600; box-shadow: 0 4px 6px rgba(0,123,255,0.2); transition: transform 0.2s; width: 80%; }
             .btn:active { transform: scale(0.96); }
             .btn-read { background-color: #28a745; box-shadow: 0 4px 6px rgba(40,167,69,0.2); }
-
+            
             .btn-test { background: none; border: none; color: #aaa; margin-top: 30px; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
             #test-results { display: none; text-align: left; margin-top: 20px; background: #fafafa; padding: 15px; border-radius: 8px; border: 1px solid #eee; font-size: 0.85rem; max-height: 200px; overflow-y: auto; }
             .result-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid #eee; }
@@ -90,13 +96,14 @@ def home():
             <button class="btn" onclick="fetchRandomArticle()" id="mainBtn">Surprends-moi</button>
             
             <br>
-            <button class="btn-test" onclick="runDiagnostics()">Tester ce fichier de flux</button>
+            <button class="btn-test" onclick="runDiagnostics()">Tester cette catégorie</button>
             <div id="test-results"></div>
         </div>
 
         <script>
             function resetView() {
-                document.getElementById('content').innerHTML = '<p style="color:#777;">Prêt à chercher dans la nouvelle catégorie.</p>';
+                const category = document.getElementById('categorySelect').value;
+                document.getElementById('content').innerHTML = '<p style="color:#777;">Catégorie : ' + category + '</p>';
                 document.getElementById('test-results').style.display = 'none';
             }
 
@@ -109,12 +116,11 @@ def home():
                 const btn = document.getElementById('mainBtn');
                 const category = getSelectedCategory();
                 
-                contentDiv.innerHTML = '<p>Recherche dans ' + category + '...</p>';
+                contentDiv.innerHTML = '<p>Recherche...</p>';
                 btn.disabled = true;
                 btn.style.opacity = "0.7";
 
                 try {
-                    // On envoie la catégorie choisie au serveur via l'URL
                     const response = await fetch('/get-random?category=' + encodeURIComponent(category));
                     const data = await response.json();
                     
@@ -122,7 +128,7 @@ def home():
                     btn.style.opacity = "1";
 
                     if (data.error) { 
-                        contentDiv.innerHTML = '<p style="color:red">Oups: ' + data.error + '</p>'; 
+                        contentDiv.innerHTML = '<p style="color:red">' + data.error + '</p>'; 
                         return; 
                     }
                     contentDiv.innerHTML = `
@@ -142,14 +148,14 @@ def home():
                 const category = getSelectedCategory();
                 
                 resultsDiv.style.display = 'block';
-                resultsDiv.innerHTML = '<p style="text-align:center;">Test de ' + category + '...</p>';
+                resultsDiv.innerHTML = '<p style="text-align:center;">Test des flux...</p>';
                 
                 try {
                     const response = await fetch('/test-sources?category=' + encodeURIComponent(category));
                     const results = await response.json();
                     
                     if(results.length === 0) {
-                        resultsDiv.innerHTML = '<p>Aucun flux trouvé dans ce fichier.</p>';
+                        resultsDiv.innerHTML = '<p>Aucun flux trouvé.</p>';
                         return;
                     }
 
@@ -170,28 +176,29 @@ def home():
         </script>
     </body>
     </html>
-    ''', categories=SOURCES_FILES.keys())
+    ''', categories=categories)
 
 @app.route('/get-random')
 def get_random():
-    # On récupère le paramètre 'category' envoyé par le JS
     category_name = request.args.get('category')
     
-    # On trouve le fichier correspondant (par défaut le premier de la liste si non trouvé)
-    filename = SOURCES_FILES.get(category_name)
-    if not filename:
-        filename = list(SOURCES_FILES.values())[0]
+    # On recharge la config à chaque appel (permet de modifier le fichier sans redémarrer)
+    feeds_config = load_feeds_config()
+    
+    # Si la catégorie n'existe pas, on prend la première dispo
+    url_list = feeds_config.get(category_name)
+    if not url_list:
+        if feeds_config:
+            url_list = list(feeds_config.values())[0]
+        else:
+            return jsonify({"error": "Aucun flux configuré."})
 
     try:
-        current_feeds = get_feeds_from_file(filename)
-        if not current_feeds:
-            return jsonify({"error": f"Le fichier {filename} est vide ou introuvable."})
-
-        random_feed_url = random.choice(current_feeds)
+        random_feed_url = random.choice(url_list)
         feed = feedparser.parse(random_feed_url)
         
         if not feed.entries: 
-            return jsonify({"error": "Flux vide", "source": random_feed_url})
+            return jsonify({"error": "Ce flux est vide ou inaccessible", "source": random_feed_url})
             
         article = random.choice(feed.entries)
         
@@ -212,15 +219,12 @@ def get_random():
 @app.route('/test-sources')
 def test_sources():
     category_name = request.args.get('category')
-    filename = SOURCES_FILES.get(category_name)
+    feeds_config = load_feeds_config()
     
-    if not filename:
-        return jsonify([])
-
-    feeds = get_feeds_from_file(filename)
+    url_list = feeds_config.get(category_name, [])
+    
     report = []
-    
-    for url in feeds:
+    for url in url_list:
         try:
             feed = feedparser.parse(url)
             is_valid = (hasattr(feed, 'entries') and len(feed.entries) > 0)
@@ -233,4 +237,3 @@ def test_sources():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
