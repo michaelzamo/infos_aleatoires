@@ -37,8 +37,9 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Info Aléatoire</title>
         <style>
-            /* --- VARIABLES DE COULEURS (THEME) --- */
+            /* --- 1. COULEURS DE BASE (Base Theme) --- */
             :root {
+                /* Fonds et textes */
                 --bg-body: #f0f2f5;
                 --bg-card: #ffffff;
                 --text-main: #333333;
@@ -47,9 +48,15 @@ def home():
                 --select-bg: #f9f9f9;
                 --select-border: #ddd;
                 --shadow: rgba(0,0,0,0.05);
+
+                /* Couleurs Sémantiques (Par défaut: Standard) */
+                --col-primary: #007bff;      /* Bleu standard */
+                --col-success: #28a745;      /* Vert standard */
+                --col-error: #dc3545;        /* Rouge standard */
+                --col-link-read: #28a745;    /* Vert pour bouton lire */
             }
             
-            /* Mode Sombre (sera activé par JS) */
+            /* --- 2. MODE SOMBRE (Dark Mode) --- */
             body.dark-mode {
                 --bg-body: #121212;
                 --bg-card: #1e1e1e;
@@ -61,36 +68,78 @@ def home():
                 --shadow: rgba(0,0,0,0.5);
             }
 
+            /* --- 3. PROFILS DALTONISME (Overrides) --- */
+            
+            /* Protanopie (Rouge absent) & Deutéranopie (Vert absent) 
+               Solution : Utiliser Bleu vs Orange/Jaune */
+            body.protanopia, body.deuteranopia {
+                --col-primary: #0072B2;      /* Bleu profond */
+                --col-success: #56B4E9;      /* Bleu ciel (distinct de l'orange) */
+                --col-error: #D55E00;        /* Vermillon/Orange fort */
+                --col-link-read: #0072B2;    /* Bouton lire en bleu */
+            }
+
+            /* Tritanopie (Bleu absent - confusion bleu/vert et jaune/violet)
+               Solution : Utiliser Teal/Turquoise vs Rouge/Rose */
+            body.tritanopia {
+                --col-primary: #000000;      
+                --col-success: #009E73;      /* Vert bleuté (Teal) */
+                --col-error: #CC79A7;        /* Rose rougeâtre */
+                --col-link-read: #009E73;
+            }
+
+            /* Achromatopsie (Vision niveaux de gris) 
+               Solution : Contraste maximal */
+            body.achromatopsia {
+                --col-primary: #000000;
+                --col-success: #000000;      /* Noir (on se fie aux icônes) */
+                --col-error: #000000;        /* Noir */
+                --col-link-read: #444444;
+                /* En mode sombre, on inverse */
+            }
+            body.dark-mode.achromatopsia {
+                --col-primary: #ffffff;
+                --col-success: #ffffff;
+                --col-error: #ffffff;
+                --col-link-read: #dddddd;
+            }
+
+            /* --- STYLES GÉNÉRAUX --- */
             body { 
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
                 display: flex; justify-content: center; align-items: center; 
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
-                background-color: var(--bg-body);
-                color: var(--text-main);
+                background-color: var(--bg-body); color: var(--text-main);
                 transition: background-color 0.3s, color 0.3s;
             }
 
             .card { 
-                background: var(--bg-card); 
-                padding: 2rem; border-radius: 16px; 
+                background: var(--bg-card); padding: 2rem; border-radius: 16px; 
                 box-shadow: 0 10px 25px var(--shadow); 
                 max-width: 500px; text-align: center; width: 100%; position: relative; 
-                transition: background 0.3s;
             }
 
-            /* En-tête avec titre et bouton thème */
-            .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+            .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
             h1 { font-size: 1.5rem; color: var(--text-main); margin: 0; }
             
-            /* Bouton bascule jour/nuit */
             .theme-toggle {
                 background: none; border: none; font-size: 1.5rem; cursor: pointer;
-                padding: 5px; border-radius: 50%; transition: transform 0.2s;
+                padding: 5px; border-radius: 50%;
             }
-            .theme-toggle:active { transform: scale(0.9); }
 
+            /* Zone de réglages (Accessibilité) */
+            .settings-row {
+                display: flex; justify-content: flex-end; margin-bottom: 20px;
+            }
+            .a11y-select {
+                padding: 5px; font-size: 0.8rem; border-radius: 4px;
+                border: 1px solid var(--select-border);
+                background-color: var(--select-bg); color: var(--text-main);
+            }
+
+            /* Menu Catégories */
             .select-container { margin-bottom: 20px; }
-            select {
+            .cat-select {
                 padding: 10px 15px; font-size: 1rem; border-radius: 8px; 
                 border: 1px solid var(--select-border);
                 background-color: var(--select-bg); color: var(--text-main);
@@ -102,26 +151,44 @@ def home():
             h2 { color: var(--text-main); }
             p { color: var(--text-sub); }
 
-            .btn { background-color: #007bff; color: white; padding: 15px 30px; text-decoration: none; border-radius: 50px; display: inline-block; margin-top: 20px; cursor: pointer; border: none; font-size: 1rem; font-weight: 600; box-shadow: 0 4px 6px rgba(0,123,255,0.2); transition: transform 0.2s; width: 80%; }
-            .btn:active { transform: scale(0.96); }
-            .btn-read { background-color: #28a745; box-shadow: 0 4px 6px rgba(40,167,69,0.2); }
+            /* Boutons utilisant les variables dynamiques */
+            .btn { 
+                background-color: var(--col-primary); 
+                color: white; padding: 15px 30px; text-decoration: none; border-radius: 50px; 
+                display: inline-block; margin-top: 20px; cursor: pointer; border: none; 
+                font-size: 1rem; font-weight: 600; width: 80%; 
+            }
+            .btn-read { background-color: var(--col-link-read); }
             
             .btn-test { background: none; border: none; color: var(--text-sub); margin-top: 30px; font-size: 0.8rem; cursor: pointer; text-decoration: underline; opacity: 0.7;}
             
+            /* Résultats utilisant les variables dynamiques */
             #test-results { display: none; text-align: left; margin-top: 20px; background: var(--tag-bg); padding: 15px; border-radius: 8px; font-size: 0.85rem; max-height: 200px; overflow-y: auto; }
             .result-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--select-border); }
-            .status-ok { color: #28a745; } .status-err { color: #dc3545; }
+            
+            .status-ok { color: var(--col-success); font-weight: bold; } 
+            .status-err { color: var(--col-error); font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="card">
             <div class="header-row">
                 <h1>Sérendipité</h1>
-                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌓</button>
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Mode Sombre/Clair">🌓</button>
+            </div>
+
+            <div class="settings-row">
+                <select id="colorBlindSelect" class="a11y-select" onchange="changeColorProfile()">
+                    <option value="normal">Vision Normale</option>
+                    <option value="protanopia">Protanopie (Rouge-)</option>
+                    <option value="deuteranopia">Deutéranopie (Vert-)</option>
+                    <option value="tritanopia">Tritanopie (Bleu-)</option>
+                    <option value="achromatopsia">Monochromatie</option>
+                </select>
             </div>
             
             <div class="select-container">
-                <select id="categorySelect" onchange="resetView()">
+                <select id="categorySelect" class="cat-select" onchange="resetView()">
                     {% for name in categories %}
                         <option value="{{ name }}">{{ name }}</option>
                     {% endfor %}
@@ -135,30 +202,52 @@ def home():
             <button class="btn" onclick="fetchRandomArticle()" id="mainBtn">Surprends-moi</button>
             
             <br>
-            <button class="btn-test" onclick="runDiagnostics()">Tester cette catégorie</button>
+            <button class="btn-test" onclick="runDiagnostics()">Tester les flux</button>
             <div id="test-results"></div>
         </div>
 
         <script>
-            // --- GESTION DU MODE SOMBRE ---
-            // Au chargement, on vérifie si l'utilisateur avait choisi le mode sombre
-            if (localStorage.getItem('theme') === 'dark') {
+            // --- GESTION DU THÈME & ACCESSIBILITÉ ---
+            
+            // 1. Initialisation au chargement
+            const savedTheme = localStorage.getItem('theme');
+            const savedProfile = localStorage.getItem('colorProfile') || 'normal';
+
+            if (savedTheme === 'dark') {
                 document.body.classList.add('dark-mode');
             }
+            
+            // Applique le profil de daltonisme sauvegardé
+            applyColorProfile(savedProfile);
+            document.getElementById('colorBlindSelect').value = savedProfile;
 
+            // 2. Fonction Mode Sombre (Reste la même)
             function toggleTheme() {
                 const body = document.body;
                 body.classList.toggle('dark-mode');
+                localStorage.setItem('theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
+            }
+
+            // 3. Fonction Profils Daltonisme
+            function changeColorProfile() {
+                const select = document.getElementById('colorBlindSelect');
+                const profile = select.value;
+                applyColorProfile(profile);
+                localStorage.setItem('colorProfile', profile);
+            }
+
+            function applyColorProfile(profile) {
+                // On retire toutes les classes de vision
+                document.body.classList.remove('protanopia', 'deuteranopia', 'tritanopia', 'achromatopsia');
                 
-                // On sauvegarde le choix dans le téléphone
-                if (body.classList.contains('dark-mode')) {
-                    localStorage.setItem('theme', 'dark');
-                } else {
-                    localStorage.setItem('theme', 'light');
+                // On ajoute celle choisie (si ce n'est pas "normal")
+                if (profile !== 'normal') {
+                    document.body.classList.add(profile);
                 }
             }
 
-            // --- FONCTIONS EXISTANTES ---
+            // --- LOGIQUE METIER (FLUX) ---
+
             function resetView() {
                 const category = document.getElementById('categorySelect').value;
                 document.getElementById('content').innerHTML = '<p>Catégorie : ' + category + '</p>';
@@ -182,7 +271,11 @@ def home():
                     const data = await response.json();
                     btn.disabled = false; btn.style.opacity = "1";
 
-                    if (data.error) { contentDiv.innerHTML = '<p style="color:#dc3545">' + data.error + '</p>'; return; }
+                    if (data.error) { 
+                        // Note : data.error s'affichera en rouge (ou orange/noir selon le profil)
+                        contentDiv.innerHTML = '<p class="status-err">' + data.error + '</p>'; 
+                        return; 
+                    }
                     
                     contentDiv.innerHTML = `
                         <div><span class="source-tag">${data.source}</span></div>
@@ -191,7 +284,8 @@ def home():
                         <a href="${data.link}" target="_blank" class="btn btn-read">Lire l'article</a>
                     `;
                 } catch (e) { 
-                    contentDiv.innerHTML = '<p>Erreur réseau.</p>'; btn.disabled = false;
+                    contentDiv.innerHTML = '<p class="status-err">Erreur réseau.</p>'; 
+                    btn.disabled = false;
                 }
             }
 
@@ -208,15 +302,19 @@ def home():
 
                     let html = '';
                     results.forEach(item => {
+                        // Les classes status-ok et status-err changeront de couleur selon le profil CSS
                         const icon = item.valid ? '✅' : '❌';
+                        const statusClass = item.valid ? 'status-ok' : 'status-err';
+                        const statusText = item.valid ? 'VALIDE' : 'ERREUR';
+                        
                         html += `
                         <div class="result-item">
-                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;" title="${item.url}">${item.url.replace('https://', '')}</span>
-                            <span class="${item.valid ? 'status-ok' : 'status-err'}">${icon}</span>
+                            <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="${item.url}">${item.url.replace('https://', '')}</span>
+                            <span class="${statusClass}">${icon} ${statusText}</span>
                         </div>`;
                     });
                     resultsDiv.innerHTML = html;
-                } catch (e) { resultsDiv.innerHTML = '<p style="color:red">Erreur test.</p>'; }
+                } catch (e) { resultsDiv.innerHTML = '<p class="status-err">Erreur test.</p>'; }
             }
         </script>
     </body>
@@ -235,7 +333,7 @@ def get_random():
     try:
         random_feed_url = random.choice(url_list)
         feed = feedparser.parse(random_feed_url)
-        if not feed.entries: return jsonify({"error": "Ce flux est vide", "source": random_feed_url})
+        if not feed.entries: return jsonify({"error": "Flux vide ou erreur", "source": random_feed_url})
         article = random.choice(feed.entries)
         
         summary = article.get('summary', 'Pas de description.')
