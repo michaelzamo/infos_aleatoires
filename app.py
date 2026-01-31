@@ -6,6 +6,7 @@ import os
 app = Flask(__name__)
 
 def load_feeds_config():
+    """Lit le fichier feeds.txt et le transforme en dictionnaire."""
     feeds_data = {}
     current_category = None
     try:
@@ -36,11 +37,9 @@ def home():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Info Aléatoire</title>
         <style>
-            /* --- 1. VARIABLES GLOBALES (Base) --- */
+            /* --- 1. COULEURS DE BASE --- */
             :root {
                 --font-scale: 1;
-                /* Valeurs par défaut (Thème Simple) */
-                --font-main: "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                 --bg-body: #f0f2f5;
                 --bg-card: #ffffff;
                 --text-main: #333333;
@@ -48,91 +47,14 @@ def home():
                 --tag-bg: #e9ecef;
                 --select-bg: #f9f9f9;
                 --select-border: #ddd;
-                --shadow: 0 10px 25px rgba(0,0,0,0.05);
+                --shadow: rgba(0,0,0,0.05);
                 --col-primary: #007bff;
                 --col-success: #28a745;
                 --col-error: #dc3545;
                 --col-link-read: #28a745;
-                --border-rad: 16px; /* Arrondi standard */
-                --border-width: 1px;
-                --border-style: solid;
-                --btn-shadow: none;
             }
-
-            /* --- 2. THÈMES VISUELS --- */
-
-            /* A. Thème IRLANDAIS (Vert, Or, Serif) */
-            body.theme-irish {
-                --font-main: "Georgia", "Times New Roman", serif;
-                --bg-body: #e8f5e9; /* Vert très pâle */
-                --bg-card: #ffffff;
-                --text-main: #1b5e20; /* Vert forêt foncé */
-                --text-sub: #4caf50;
-                --tag-bg: #c8e6c9;
-                --select-bg: #ffffff;
-                --select-border: #81c784;
-                --col-primary: #2e7d32; /* Vert trèfle */
-                --col-link-read: #ff8f00; /* Orange/Or */
-                --shadow: 0 4px 15px rgba(46, 125, 50, 0.2);
-                --border-rad: 8px;
-            }
-            /* Petit détail visuel pour le fond irlandais */
-            body.theme-irish::before {
-                content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: radial-gradient(circle at 50% 50%, #e8f5e9 0%, #c8e6c9 100%);
-                z-index: -1;
-            }
-
-            /* B. Thème JAPONAIS (Minimaliste, Rouge, Papier, Carré) */
-            body.theme-japanese {
-                --font-main: "Hiragino Kaku Gothic Pro", "Meiryo", sans-serif;
-                --bg-body: #fcfaf2; /* Blanc cassé papier */
-                --bg-card: #ffffff;
-                --text-main: #2b2b2b;
-                --text-sub: #999;
-                --tag-bg: #f0f0f0;
-                --select-bg: #fff;
-                --select-border: #2b2b2b;
-                --col-primary: #bc002d; /* Rouge Japon */
-                --col-link-read: #2b2b2b; /* Noir encre */
-                --border-rad: 0px; /* Pas d'arrondis */
-                --shadow: 5px 5px 0px rgba(0,0,0,0.1); /* Ombre dure */
-                --border-width: 1px;
-            }
-            /* Texture papier pour le Japon */
-            body.theme-japanese .card {
-                border: 1px solid #eee;
-                background-image: linear-gradient(0deg, transparent 24%, #fcfaf2 25%, #fcfaf2 26%, transparent 27%, transparent 74%, #fcfaf2 75%, #fcfaf2 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, #fcfaf2 25%, #fcfaf2 26%, transparent 27%, transparent 74%, #fcfaf2 75%, #fcfaf2 76%, transparent 77%, transparent);
-                background-size: 50px 50px;
-            }
-
-            /* C. Thème STEAMPUNK (Cuivre, Laiton, Industriel) */
-            body.theme-steampunk {
-                --font-main: "Courier New", Courier, monospace;
-                --bg-body: #2b2b2b;
-                --bg-card: #d8cba8; /* Couleur Parchemin */
-                --text-main: #3e2723; /* Marron foncé */
-                --text-sub: #5d4037;
-                --tag-bg: #bcaaa4;
-                --select-bg: #efebe9;
-                --select-border: #5d4037;
-                --col-primary: #8d6e63; /* Bronze */
-                --col-link-read: #bf360c; /* Rouille */
-                --border-rad: 2px;
-                --border-width: 3px;
-                --border-style: double;
-                --shadow: 0 0 20px rgba(0,0,0,0.7);
-                --btn-shadow: inset 0 0 5px rgba(0,0,0,0.5);
-            }
-            /* Fond industriel */
-            body.theme-steampunk::before {
-                content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: repeating-linear-gradient(45deg, #2b2b2b, #2b2b2b 10px, #1a1a1a 10px, #1a1a1a 20px);
-                z-index: -1;
-            }
-
-            /* --- 3. MODE SOMBRE (Overrides pour le thème Simple) --- */
-            body.dark-mode:not(.theme-steampunk):not(.theme-irish):not(.theme-japanese) {
+            
+            body.dark-mode {
                 --bg-body: #121212;
                 --bg-card: #1e1e1e;
                 --text-main: #e0e0e0;
@@ -142,50 +64,49 @@ def home():
                 --select-border: #444;
                 --shadow: rgba(0,0,0,0.5);
             }
-            /* Le mode sombre ajuste aussi les thèmes spécifiques si nécessaire */
-            body.dark-mode.theme-japanese {
-                --bg-body: #111; --bg-card: #222; --text-main: #fff; --bg-card-img: none;
-            }
 
+            /* Profils Daltonisme */
+            body.protanopia, body.deuteranopia { --col-primary: #0072B2; --col-success: #56B4E9; --col-error: #D55E00; --col-link-read: #0072B2; }
+            body.tritanopia { --col-primary: #000000; --col-success: #009E73; --col-error: #CC79A7; --col-link-read: #009E73; }
+            body.achromatopsia { --col-primary: #000000; --col-success: #000000; --col-error: #000000; --col-link-read: #444444; }
+            body.dark-mode.achromatopsia { --col-primary: #ffffff; --col-success: #ffffff; --col-error: #ffffff; --col-link-read: #dddddd; }
 
-            /* --- 4. PROFILS DALTONISME (Priorité Haute) --- */
-            body.protanopia { --col-primary: #0072B2 !important; --col-success: #56B4E9 !important; --col-error: #D55E00 !important; }
-            body.deuteranopia { --col-primary: #0072B2 !important; --col-success: #56B4E9 !important; --col-error: #D55E00 !important; }
-            body.tritanopia { --col-primary: #000000 !important; --col-success: #009E73 !important; --col-error: #CC79A7 !important; }
-            body.achromatopsia { --col-primary: #000000 !important; --col-success: #000000 !important; --col-error: #000000 !important; }
-
-
-            /* --- 5. STYLES GÉNÉRAUX --- */
+            /* Styles Généraux */
             body { 
-                font-family: var(--font-main);
+                font-family: "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
                 display: flex; justify-content: center; align-items: center; 
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
                 background-color: var(--bg-body); color: var(--text-main);
-                transition: background 0.3s, color 0.3s, font-family 0.3s;
+                transition: background-color 0.3s, color 0.3s;
+                /* C'est ici que la taille de base est définie */
                 font-size: calc(16px * var(--font-scale));
             }
 
-            /* Correction taille police formulaires */
-            button, select, input, .btn, .cat-select, .a11y-select { font-size: 1em !important; }
-            .source-tag, .setting-label, .btn-test { font-size: 0.8em !important; }
+            /* CORRECTION : On force les boutons et inputs à hériter de la taille du body */
+            button, select, input, .btn, .cat-select, .a11y-select {
+                font-size: 1em !important; /* 1em = 100% de la taille du parent */
+            }
+            
+            /* Les petits textes (labels) doivent rester proportionnellement plus petits */
+            .source-tag, .setting-label, .btn-test {
+                font-size: 0.8em !important;
+            }
 
             .card { 
-                background: var(--bg-card); padding: 2rem; 
-                border-radius: var(--border-rad); 
-                box-shadow: var(--shadow); 
-                border: var(--border-width) var(--border-style) var(--select-border);
+                background: var(--bg-card); padding: 2rem; border-radius: 16px; 
+                box-shadow: 0 10px 25px var(--shadow); 
                 max-width: 500px; text-align: center; width: 100%; position: relative; 
             }
 
             .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
             h1 { font-size: 1.5em; color: var(--text-main); margin: 0; }
             
-            .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; filter: grayscale(100%); }
+            .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; }
 
+            /* Zone de réglages */
             .settings-container {
                 display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;
-                background: var(--tag-bg); padding: 10px; border-radius: var(--border-rad);
-                border: 1px solid var(--select-border);
+                background: var(--tag-bg); padding: 10px; border-radius: 8px;
             }
             .settings-row { display: flex; justify-content: space-between; align-items: center; }
             .setting-label { color: var(--text-sub); font-weight: bold; text-transform: uppercase;}
@@ -194,14 +115,14 @@ def home():
                 padding: 4px; border-radius: 4px;
                 border: 1px solid var(--select-border);
                 background-color: var(--select-bg); color: var(--text-main);
-                max-width: 140px;
+                max-width: 120px;
             }
             
             .font-slider-group { display: flex; align-items: center; gap: 8px; }
-            input[type=range] { width: 80px; cursor: pointer; accent-color: var(--col-primary); }
+            input[type=range] { width: 80px; cursor: pointer; }
 
             .cat-select {
-                padding: 10px 15px; border-radius: var(--border-rad);
+                padding: 10px 15px; border-radius: 8px; 
                 border: 1px solid var(--select-border);
                 background-color: var(--select-bg); color: var(--text-main);
                 width: 100%; max-width: 300px; cursor: pointer; outline: none; margin-top: 10px; margin-bottom: 20px;
@@ -215,13 +136,12 @@ def home():
                 background-color: var(--col-primary); color: white; padding: 15px 30px; 
                 text-decoration: none; border-radius: 50px; display: inline-block; 
                 margin-top: 20px; cursor: pointer; border: none; font-weight: 600; width: 80%; 
-                box-shadow: var(--btn-shadow);
             }
             .btn-read { background-color: var(--col-link-read); }
             
             .btn-test { background: none; border: none; color: var(--text-sub); margin-top: 30px; cursor: pointer; text-decoration: underline; opacity: 0.7;}
             
-            #test-results { display: none; text-align: left; margin-top: 20px; background: var(--tag-bg); padding: 15px; border-radius: var(--border-rad); font-size: 0.85em; max-height: 200px; overflow-y: auto; }
+            #test-results { display: none; text-align: left; margin-top: 20px; background: var(--tag-bg); padding: 15px; border-radius: 8px; font-size: 0.85em; max-height: 200px; overflow-y: auto; }
             .result-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--select-border); }
             .status-ok { color: var(--col-success); font-weight: bold; } 
             .status-err { color: var(--col-error); font-weight: bold; }
@@ -231,7 +151,7 @@ def home():
         <div class="card">
             <div class="header-row">
                 <h1 data-i18n="app_title">Sérendipité</h1>
-                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn" title="Mode Nuit">🌓</button>
+                <button class="theme-toggle" onclick="toggleTheme()" id="themeBtn">🌓</button>
             </div>
 
             <div class="settings-container">
@@ -245,19 +165,10 @@ def home():
                     </select>
                 </div>
                 <div class="settings-row">
-                    <span class="setting-label" data-i18n="lbl_theme">THÈME</span>
-                    <select id="themeSelect" class="a11y-select" onchange="changeAppTheme()">
-                        <option value="simple" data-i18n="th_simple">Simple</option>
-                        <option value="irish" data-i18n="th_irish">Irlandais ☘️</option>
-                        <option value="japanese" data-i18n="th_japanese">Japonais 🇯🇵</option>
-                        <option value="steampunk" data-i18n="th_steampunk">Steampunk ⚙️</option>
-                    </select>
-                </div>
-                <div class="settings-row">
                     <span class="setting-label" data-i18n="lbl_vision">VISION</span>
                     <select id="colorBlindSelect" class="a11y-select" onchange="changeColorProfile()">
                         <option value="normal" data-i18n="vision_norm">Normale</option>
-                        <option value="protanopia">Protanopie (R-)</option>
+                        <option value="protanopia">Protanopia (R-)</option>
                         <option value="deuteranopia">Deutéranopie (V-)</option>
                         <option value="tritanopia">Tritanopie (B-)</option>
                         <option value="achromatopsia">Mono</option>
@@ -296,13 +207,8 @@ def home():
                 fr: {
                     app_title: "Sérendipité",
                     lbl_lang: "LANGUE",
-                    lbl_theme: "THÈME",
                     lbl_vision: "VISION",
                     lbl_size: "TAILLE",
-                    th_simple: "Simple",
-                    th_irish: "Irlandais",
-                    th_japanese: "Japonais",
-                    th_steampunk: "Steampunk",
                     vision_norm: "Normale",
                     intro_text: "Cliquez pour découvrir un article au hasard.",
                     cat_prefix: "Catégorie : ",
@@ -319,13 +225,8 @@ def home():
                 en: {
                     app_title: "Serendipity",
                     lbl_lang: "LANGUAGE",
-                    lbl_theme: "THEME",
                     lbl_vision: "VISION",
                     lbl_size: "SIZE",
-                    th_simple: "Simple",
-                    th_irish: "Irish",
-                    th_japanese: "Japanese",
-                    th_steampunk: "Steampunk",
                     vision_norm: "Normal",
                     intro_text: "Click to discover a random article.",
                     cat_prefix: "Category: ",
@@ -342,13 +243,8 @@ def home():
                 es: {
                     app_title: "Serendipia",
                     lbl_lang: "IDIOMA",
-                    lbl_theme: "TEMA",
                     lbl_vision: "VISIÓN",
                     lbl_size: "TAMAÑO",
-                    th_simple: "Simple",
-                    th_irish: "Irlandés",
-                    th_japanese: "Japonés",
-                    th_steampunk: "Steampunk",
                     vision_norm: "Normal",
                     intro_text: "Haz clic para descubrir un artículo.",
                     cat_prefix: "Categoría: ",
@@ -365,13 +261,8 @@ def home():
                 jp: {
                     app_title: "セレンディピティ",
                     lbl_lang: "言語",
-                    lbl_theme: "テーマ",
                     lbl_vision: "色覚設定",
                     lbl_size: "文字サイズ",
-                    th_simple: "シンプル",
-                    th_irish: "アイリッシュ",
-                    th_japanese: "和風",
-                    th_steampunk: "スチームパンク",
                     vision_norm: "通常",
                     intro_text: "クリックして記事を発見しましょう。",
                     cat_prefix: "カテゴリー：",
@@ -388,18 +279,13 @@ def home():
             };
 
             // --- INITIALISATION ---
-            const savedTheme = localStorage.getItem('themeMode'); // Dark/Light
-            const savedAppTheme = localStorage.getItem('appTheme') || 'simple'; // Style (Irish, etc)
+            const savedTheme = localStorage.getItem('theme');
             const savedProfile = localStorage.getItem('colorProfile') || 'normal';
             const savedFontScale = localStorage.getItem('fontScale') || '1';
-            const savedLang = localStorage.getItem('appLang') || 'fr';
+            const savedLang = localStorage.getItem('appLang') || 'fr'; 
 
-            // 1. Appliquer les préférences
             if (savedTheme === 'dark') document.body.classList.add('dark-mode');
             
-            applyAppTheme(savedAppTheme);
-            document.getElementById('themeSelect').value = savedAppTheme;
-
             applyColorProfile(savedProfile);
             document.getElementById('colorBlindSelect').value = savedProfile;
 
@@ -410,27 +296,9 @@ def home():
             applyLanguage(savedLang);
 
             // --- FONCTIONS ---
-            
-            // Mode Nuit (Luminosité)
             function toggleTheme() {
                 document.body.classList.toggle('dark-mode');
-                localStorage.setItem('themeMode', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
-            }
-
-            // Thème Visuel (Style)
-            function changeAppTheme() {
-                const theme = document.getElementById('themeSelect').value;
-                applyAppTheme(theme);
-                localStorage.setItem('appTheme', theme);
-            }
-
-            function applyAppTheme(theme) {
-                // Nettoie les classes de thèmes
-                document.body.classList.remove('theme-irish', 'theme-japanese', 'theme-steampunk');
-                // Ajoute la nouvelle (sauf si c'est 'simple' qui est le défaut)
-                if (theme !== 'simple') {
-                    document.body.classList.add('theme-' + theme);
-                }
+                localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
             }
 
             function changeColorProfile() {
@@ -463,12 +331,7 @@ def home():
                 const t = translations[lang];
                 document.querySelectorAll('[data-i18n]').forEach(el => {
                     const key = el.getAttribute('data-i18n');
-                    // On gère les options des select séparément
-                    if (el.tagName === 'OPTION') {
-                         if (t[key]) el.textContent = t[key];
-                    } else {
-                         if (t[key]) el.textContent = t[key];
-                    }
+                    if (t[key]) el.textContent = t[key];
                 });
             }
 
@@ -548,7 +411,7 @@ def home():
     </body>
     </html>
     ''', categories=categories)
-# ... [Le reste du code Python : get_random, test_sources est identique] ...
+
 @app.route('/get-random')
 def get_random():
     category_name = request.args.get('category')
