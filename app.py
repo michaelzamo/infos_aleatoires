@@ -11,12 +11,11 @@ FILES = {
     'saved': 'saved_links.txt'
 }
 
-# --- GESTION FICHIER FEEDS (Lecture/Ecriture) ---
+# --- GESTION FICHIER FEEDS ---
 def load_feeds_config():
     feeds_data = {}
     current_category = None
     if not os.path.exists(FILES['feeds']):
-        # Création fichier par défaut s'il n'existe pas
         with open(FILES['feeds'], 'w', encoding='utf-8') as f:
             f.write("[Actualités]\nhttps://www.lemonde.fr/rss/une.xml\n")
     
@@ -34,7 +33,6 @@ def load_feeds_config():
     return feeds_data
 
 def save_feeds_config(data):
-    """Réécrit entièrement le fichier feeds.txt avec les nouvelles données"""
     try:
         with open(FILES['feeds'], 'w', encoding='utf-8') as f:
             for category, urls in data.items():
@@ -57,9 +55,12 @@ def get_saved_links(category_filter=None):
                 parts = line.strip().split('|')
                 if len(parts) < 2: continue
                 
-                # Gestion compatibilité anciens formats
                 if len(parts) == 2: cat, url, title = "Général", parts[0], parts[1]
                 else: cat, url, title = parts[0], parts[1], "|".join(parts[2:])
+
+                # CORRECTION : On ignore les liens corrompus ("None")
+                if url == 'None' or not url.startswith('http'):
+                    continue
 
                 if category_filter and cat != category_filter: continue
                 links.append({'category': cat, 'url': url, 'title': title})
@@ -67,7 +68,8 @@ def get_saved_links(category_filter=None):
     return links
 
 def save_link_to_file(category, url, title):
-    # Vérif doublon global
+    if not url or url == 'None': return False
+    
     all_links = get_saved_links()
     for l in all_links:
         if l['url'] == url: return False
@@ -123,7 +125,6 @@ def home():
                 --tag-bg: #333; --select-bg: #2c2c2c; --select-border: #444;
                 --shadow: rgba(0,0,0,0.5);
             }
-            /* Profils Daltonisme */
             body.protanopia, body.deuteranopia { --col-primary: #0072B2; --col-success: #56B4E9; --col-error: #D55E00; }
             body.tritanopia { --col-primary: #000000; --col-success: #009E73; --col-error: #CC79A7; }
             body.achromatopsia { --col-primary: #000000; --col-success: #000000; --col-error: #000000; }
@@ -160,7 +161,6 @@ def home():
             .btn-read { background:var(--col-success); }
             .btn-test { background:none; border:none; color:var(--text-sub); margin-top:20px; cursor:pointer; text-decoration:underline; font-size:0.8em; }
 
-            /* GESTIONNAIRE DE FLUX (MODAL STYLE) */
             #managerSection { display:none; background:var(--bg-body); padding:15px; border-radius:8px; border:1px solid var(--select-border); margin-bottom:20px; }
             .man-title { font-weight:bold; margin-bottom:10px; border-bottom:1px solid var(--select-border); padding-bottom:5px; }
             .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; }
@@ -170,7 +170,6 @@ def home():
             .btn-del { background:var(--col-error); margin-left:5px;}
             .feed-list { margin-left:10px; margin-top:5px; border-left:2px solid var(--select-border); padding-left:10px; }
 
-            /* DIAGNOSTIC & LISTE */
             .list-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--select-border); font-size:0.9em; }
             .list-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:10px; flex-grow:1; text-align:left; }
             .status-ok { color:var(--col-success); font-weight:bold; }
@@ -209,12 +208,10 @@ def home():
 
             <div id="managerSection">
                 <div class="man-title" data-i18n="man_title">Gestion des flux</div>
-                
                 <div class="man-row">
                     <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie...">
                     <button class="btn-small btn-add" onclick="apiManage('add_cat')" data-i18n="btn_add">Ajouter</button>
                 </div>
-
                 <div id="managerContent"></div>
             </div>
             
@@ -274,7 +271,6 @@ def home():
                 }
             };
 
-            // INIT
             const savedP = localStorage.getItem('colorProfile')||'normal';
             const savedF = localStorage.getItem('fontScale')||'1';
             const savedL = localStorage.getItem('appLang')||'fr';
@@ -285,9 +281,8 @@ def home():
             applyLanguage(savedL); document.getElementById('langSelect').value=savedL;
             
             loadSavedLinks();
-            loadManagerData(); // Précharger les données du gestionnaire
+            loadManagerData();
 
-            // UI HELPERS
             function toggleTheme(){ 
                 document.body.classList.toggle('dark-mode'); 
                 localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light');
@@ -314,11 +309,10 @@ def home():
                 document.querySelectorAll('[data-i18n]').forEach(el => {
                     if(t[el.getAttribute('data-i18n')]) el.textContent = t[el.getAttribute('data-i18n')];
                 });
-                document.getElementById('langSelect').value = l; // Sync select
+                document.getElementById('langSelect').value = l;
             }
             function getTrans(k){ return translations[document.getElementById('langSelect').value][k] || k; }
 
-            // --- FONCTIONS GESTIONNAIRE ---
             function toggleManager(){
                 const m = document.getElementById('managerSection');
                 m.style.display = m.style.display === 'block' ? 'none' : 'block';
@@ -381,10 +375,8 @@ def home():
                 });
                 const json = await res.json();
                 if(json.success) {
-                    // Recharger la page pour mettre à jour le select principal si nécessaire
                     if(action.includes('cat')) location.reload(); 
                     else loadManagerData();
-                    
                     if(inputId) document.getElementById(inputId).value = '';
                     if(action === 'add_cat') document.getElementById('newCatInput').value = '';
                 } else {
@@ -392,7 +384,6 @@ def home():
                 }
             }
 
-            // --- FONCTIONS CORE ---
             function resetView(){
                 currentData = null; document.getElementById('saveBtn').style.display='none';
                 document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
@@ -426,11 +417,16 @@ def home():
                 } catch(e){ content.innerHTML='<p class="status-err">Erreur</p>'; btn.disabled=false; }
             }
 
-            // SAVING
             async function saveCurrentArticle(){
                 if(!currentData) return;
+                // CORRECTION ICI : On utilise d.get('url') ou d.get('link') côté serveur, mais ici on s'assure d'envoyer 'url'
                 await fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify(currentData) });
+                    body: JSON.stringify({
+                        category: currentData.category,
+                        url: currentData.link || currentData.url, // Assure que le champ s'appelle 'url'
+                        title: currentData.title
+                    })
+                });
                 loadSavedLinks();
             }
             async function loadSavedLinks(){
@@ -453,7 +449,6 @@ def home():
                 }
             }
 
-            // DIAGNOSTICS & CLEANING
             async function runDiagnostics(){
                 const cat = document.getElementById('categorySelect').value;
                 const div = document.getElementById('test-results');
@@ -478,8 +473,6 @@ def home():
     </body>
     </html>
     ''', categories=categories)
-
-# --- API ENDPOINTS ---
 
 @app.route('/get-random')
 def get_random():
@@ -547,7 +540,9 @@ def manage_feeds():
 @app.route('/api/save', methods=['POST'])
 def api_save():
     d = request.json
-    success = save_link_to_file(d.get('category'), d.get('url'), d.get('title', 'Sans titre'))
+    # CORRECTION : On accepte 'url' ou 'link'
+    url_to_save = d.get('url') or d.get('link')
+    success = save_link_to_file(d.get('category'), url_to_save, d.get('title', 'Sans titre'))
     return jsonify({"success": success})
 
 @app.route('/api/saved-links')
