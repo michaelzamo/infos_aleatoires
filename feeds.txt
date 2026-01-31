@@ -3,14 +3,17 @@ https://www.lemonde.fr/rss/une.xml
 https://www.courrierinternational.com/feed/all/rss.xml
 https://www.pourlascience.fr/rss.xml
 https://legrandcontinent.eu/fr/feed/
+https://www.nationalgeographic.fr/rss/
 
 [Actualidades]
 https://legrandcontinent.eu/es/feed
 https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada
 https://www.eldiario.es/rss/
+https://www.nationalgeographic.es/rss/
 
 [ニュース]
 http://rss.asahi.com/rss/asahi/newsheadlines.rdf
 https://news.livedoor.com/topics/rss/top.xml
 http://feeds.feedburner.com/SdJapan
 https://www.nhk.or.jp/kikakubosyuu/info.xml
+https://www.nationalgeographic.jp/rss/
