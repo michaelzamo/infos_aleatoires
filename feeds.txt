@@ -13,3 +13,4 @@ https://www.eldiario.es/rss/
 http://rss.asahi.com/rss/asahi/newsheadlines.rdf
 https://news.livedoor.com/topics/rss/top.xml
 http://feeds.feedburner.com/SdJapan
+https://www.nhk.or.jp/kikakubosyuu/info.xml
