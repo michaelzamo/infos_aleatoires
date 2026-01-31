@@ -8,10 +8,8 @@ app = Flask(__name__)
 # CONFIGURATION DES CATÉGORIES
 # Format : "Nom affiché dans le menu" : "Nom du fichier.txt"
 SOURCES_FILES = {
-    "Actualités Générales": "feeds_actu.txt",
-    "Tech & Sciences": "feeds_tech.txt",
-    "Culture & Idées": "feeds_culture.txt",
-    "Sports": "feeds_sport.txt"
+    "Actualités Générales": "feeds_francais.txt",
+    "Actualidades": "feeds_espanol.txt"
 }
 
 def get_feeds_from_file(filename):
@@ -235,3 +233,4 @@ def test_sources():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
