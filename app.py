@@ -58,9 +58,7 @@ def get_saved_links(category_filter=None):
                 if len(parts) == 2: cat, url, title = "Général", parts[0], parts[1]
                 else: cat, url, title = parts[0], parts[1], "|".join(parts[2:])
 
-                # CORRECTION : On ignore les liens corrompus ("None")
-                if url == 'None' or not url.startswith('http'):
-                    continue
+                if url == 'None' or not url.startswith('http'): continue
 
                 if category_filter and cat != category_filter: continue
                 links.append({'category': cat, 'url': url, 'title': title})
@@ -69,7 +67,6 @@ def get_saved_links(category_filter=None):
 
 def save_link_to_file(category, url, title):
     if not url or url == 'None': return False
-    
     all_links = get_saved_links()
     for l in all_links:
         if l['url'] == url: return False
@@ -197,7 +194,7 @@ def home():
                     <select id="colorBlindSelect" class="a11y-select" onchange="changeColorProfile()">
                         <option value="normal" data-i18n="vision_norm">Normale</option>
                         <option value="protanopia">Protanopia</option><option value="deuteranopia">Deuteranopia</option>
-                        <option value="tritanopia">Tritanopia</option><option value="achromatopsia">Mono</option>
+                        <option value="tritanopia">Tritanopie</option><option value="achromatopsia">Mono</option>
                     </select>
                 </div>
                 <div class="settings-row">
@@ -249,25 +246,25 @@ def home():
                     app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale",
                     intro_text:"Cliquez pour découvrir.", btn_surprise:"Surprends-moi", btn_save:"💾 Sauvegarder", btn_read:"Lire",
                     btn_test:"Tester / Nettoyer flux", lbl_saved:"Articles sauvegardés", man_title:"Gestion des flux", btn_add:"Ajouter",
-                    msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR"
+                    msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?"
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal",
                     intro_text:"Click to discover.", btn_surprise:"Surprise me", btn_save:"💾 Save", btn_read:"Read",
                     btn_test:"Test / Clean Feeds", lbl_saved:"Saved Articles", man_title:"Feed Manager", btn_add:"Add",
-                    msg_loading:"Searching...", status_ok:"OK", status_err:"ERR"
+                    msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?"
                 },
                 es: {
                     app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal",
                     intro_text:"Descubrir.", btn_surprise:"Sorpréndeme", btn_save:"💾 Guardar", btn_read:"Leer",
                     btn_test:"Probar / Limpiar", lbl_saved:"Guardados", man_title:"Gestión de feeds", btn_add:"Añadir",
-                    msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR"
+                    msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR", msg_confirm: "¿Confirmar la eliminación?"
                 },
                 jp: {
                     app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常",
                     intro_text:"発見する。", btn_surprise:"驚かせて", btn_save:"💾 保存", btn_read:"読む",
                     btn_test:"テスト / クリーン", lbl_saved:"保存リスト", man_title:"フィード管理", btn_add:"追加",
-                    msg_loading:"検索中...", status_ok:"有効", status_err:"エラー"
+                    msg_loading:"検索中...", status_ok:"有効", status_err:"エラー", msg_confirm: "本当に削除しますか？"
                 }
             };
 
@@ -367,7 +364,7 @@ def home():
                     if(!payload.category) return;
                 }
 
-                if(action.includes('del') && !confirm("Confirmer la suppression ?")) return;
+                if(action.includes('del') && !confirm(getTrans('msg_confirm'))) return;
 
                 const res = await fetch('/api/feeds/manage', {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -419,11 +416,10 @@ def home():
 
             async function saveCurrentArticle(){
                 if(!currentData) return;
-                // CORRECTION ICI : On utilise d.get('url') ou d.get('link') côté serveur, mais ici on s'assure d'envoyer 'url'
                 await fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'},
                     body: JSON.stringify({
                         category: currentData.category,
-                        url: currentData.link || currentData.url, // Assure que le champ s'appelle 'url'
+                        url: currentData.link || currentData.url, 
                         title: currentData.title
                     })
                 });
@@ -443,7 +439,7 @@ def home():
                 });
             }
             async function deleteSaved(url){
-                if(confirm('Supprimer ?')) {
+                if(confirm(getTrans('msg_confirm'))) {
                     await fetch('/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url})});
                     loadSavedLinks();
                 }
@@ -473,6 +469,8 @@ def home():
     </body>
     </html>
     ''', categories=categories)
+
+# --- API ENDPOINTS ---
 
 @app.route('/get-random')
 def get_random():
@@ -540,7 +538,6 @@ def manage_feeds():
 @app.route('/api/save', methods=['POST'])
 def api_save():
     d = request.json
-    # CORRECTION : On accepte 'url' ou 'link'
     url_to_save = d.get('url') or d.get('link')
     success = save_link_to_file(d.get('category'), url_to_save, d.get('title', 'Sans titre'))
     return jsonify({"success": success})
