@@ -78,7 +78,18 @@ def home():
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
                 background-color: var(--bg-body); color: var(--text-main);
                 transition: background-color 0.3s, color 0.3s;
+                /* C'est ici que la taille de base est définie */
                 font-size: calc(16px * var(--font-scale));
+            }
+
+            /* CORRECTION : On force les boutons et inputs à hériter de la taille du body */
+            button, select, input, .btn, .cat-select, .a11y-select {
+                font-size: 1em !important; /* 1em = 100% de la taille du parent */
+            }
+            
+            /* Les petits textes (labels) doivent rester proportionnellement plus petits */
+            .source-tag, .setting-label, .btn-test {
+                font-size: 0.8em !important;
             }
 
             .card { 
@@ -88,9 +99,9 @@ def home():
             }
 
             .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-            h1 { font-size: 1.5rem; color: var(--text-main); margin: 0; }
+            h1 { font-size: 1.5em; color: var(--text-main); margin: 0; }
             
-            .theme-toggle { background: none; border: none; font-size: 1.5rem; cursor: pointer; padding: 5px; }
+            .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; }
 
             /* Zone de réglages */
             .settings-container {
@@ -98,10 +109,10 @@ def home():
                 background: var(--tag-bg); padding: 10px; border-radius: 8px;
             }
             .settings-row { display: flex; justify-content: space-between; align-items: center; }
-            .setting-label { font-size: 0.75rem; color: var(--text-sub); font-weight: bold; text-transform: uppercase;}
+            .setting-label { color: var(--text-sub); font-weight: bold; text-transform: uppercase;}
 
             .a11y-select {
-                padding: 4px; font-size: 0.8rem; border-radius: 4px;
+                padding: 4px; border-radius: 4px;
                 border: 1px solid var(--select-border);
                 background-color: var(--select-bg); color: var(--text-main);
                 max-width: 120px;
@@ -111,26 +122,26 @@ def home():
             input[type=range] { width: 80px; cursor: pointer; }
 
             .cat-select {
-                padding: 10px 15px; font-size: 1rem; border-radius: 8px; 
+                padding: 10px 15px; border-radius: 8px; 
                 border: 1px solid var(--select-border);
                 background-color: var(--select-bg); color: var(--text-main);
                 width: 100%; max-width: 300px; cursor: pointer; outline: none; margin-top: 10px; margin-bottom: 20px;
             }
 
-            .source-tag { background: var(--tag-bg); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; color: var(--text-sub); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;}
+            .source-tag { background: var(--tag-bg); padding: 4px 10px; border-radius: 20px; color: var(--text-sub); text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px;}
             h2 { color: var(--text-main); margin: 15px 0; font-size: 1.3em; }
             p { color: var(--text-sub); line-height: 1.6; }
 
             .btn { 
                 background-color: var(--col-primary); color: white; padding: 15px 30px; 
                 text-decoration: none; border-radius: 50px; display: inline-block; 
-                margin-top: 20px; cursor: pointer; border: none; font-size: 1rem; font-weight: 600; width: 80%; 
+                margin-top: 20px; cursor: pointer; border: none; font-weight: 600; width: 80%; 
             }
             .btn-read { background-color: var(--col-link-read); }
             
-            .btn-test { background: none; border: none; color: var(--text-sub); margin-top: 30px; font-size: 0.8rem; cursor: pointer; text-decoration: underline; opacity: 0.7;}
+            .btn-test { background: none; border: none; color: var(--text-sub); margin-top: 30px; cursor: pointer; text-decoration: underline; opacity: 0.7;}
             
-            #test-results { display: none; text-align: left; margin-top: 20px; background: var(--tag-bg); padding: 15px; border-radius: 8px; font-size: 0.85rem; max-height: 200px; overflow-y: auto; }
+            #test-results { display: none; text-align: left; margin-top: 20px; background: var(--tag-bg); padding: 15px; border-radius: 8px; font-size: 0.85em; max-height: 200px; overflow-y: auto; }
             .result-item { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--select-border); }
             .status-ok { color: var(--col-success); font-weight: bold; } 
             .status-err { color: var(--col-error); font-weight: bold; }
@@ -166,9 +177,9 @@ def home():
                 <div class="settings-row">
                     <span class="setting-label" data-i18n="lbl_size">TAILLE</span>
                     <div class="font-slider-group">
-                        <span style="font-size: 0.8rem">A</span>
+                        <span style="font-size: 0.8em">A</span>
                         <input type="range" id="fontSlider" min="0.8" max="1.5" step="0.1" value="1" oninput="changeFontSize()">
-                        <span style="font-size: 1.2rem">A</span>
+                        <span style="font-size: 1.2em">A</span>
                     </div>
                 </div>
             </div>
@@ -271,7 +282,7 @@ def home():
             const savedTheme = localStorage.getItem('theme');
             const savedProfile = localStorage.getItem('colorProfile') || 'normal';
             const savedFontScale = localStorage.getItem('fontScale') || '1';
-            const savedLang = localStorage.getItem('appLang') || 'fr'; // Défaut FR
+            const savedLang = localStorage.getItem('appLang') || 'fr'; 
 
             if (savedTheme === 'dark') document.body.classList.add('dark-mode');
             
@@ -281,11 +292,10 @@ def home():
             applyFontSize(savedFontScale);
             document.getElementById('fontSlider').value = savedFontScale;
 
-            // Appliquer la langue au chargement
             document.getElementById('langSelect').value = savedLang;
             applyLanguage(savedLang);
 
-            // --- FONCTIONS DE REGLAGE ---
+            // --- FONCTIONS ---
             function toggleTheme() {
                 document.body.classList.toggle('dark-mode');
                 localStorage.setItem('theme', document.body.classList.contains('dark-mode') ? 'dark' : 'light');
@@ -314,13 +324,11 @@ def home():
                 const lang = document.getElementById('langSelect').value;
                 applyLanguage(lang);
                 localStorage.setItem('appLang', lang);
-                // Si on change de langue, on reset le message d'accueil
                 resetView();
             }
 
             function applyLanguage(lang) {
                 const t = translations[lang];
-                // On met à jour tous les éléments qui ont l'attribut data-i18n
                 document.querySelectorAll('[data-i18n]').forEach(el => {
                     const key = el.getAttribute('data-i18n');
                     if (t[key]) el.textContent = t[key];
@@ -331,7 +339,6 @@ def home():
                 const lang = document.getElementById('langSelect').value;
                 return translations[lang][key] || "Text Missing";
             }
-
 
             // --- LOGIQUE METIER ---
             function resetView() {
@@ -405,7 +412,6 @@ def home():
     </html>
     ''', categories=categories)
 
-# ... Le reste du code Python (get_random, test_sources) est inchangé ...
 @app.route('/get-random')
 def get_random():
     category_name = request.args.get('category')
