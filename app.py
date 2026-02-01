@@ -58,14 +58,23 @@ class SavedArticle(db.Model):
     url = db.Column(db.String(500), unique=True, nullable=False)
     title = db.Column(db.String(500))
 
-# Initialisation BDD
+# Initialisation BDD avec reset forcé pour synchroniser la structure
 with app.app_context():
+    # Décommentez la ligne suivante UNIQUEMENT pour le premier déploiement 
+    # afin de corriger l'erreur de colonne manquante :
+    db.drop_all() 
+    
     db.create_all()
+    
     # Données par défaut si vide
     if not Category.query.first():
         default_cat = "Actualités"
-        db.session.add(Category(name=default_cat))
-        db.session.add(Feed(category_name=default_cat, url="https://www.lemonde.fr/rss/une.xml"))
+        if not Category.query.filter_by(name=default_cat).first():
+            db.session.add(Category(name=default_cat))
+        
+        if not Feed.query.filter_by(category_name=default_cat).first():
+            db.session.add(Feed(category_name=default_cat, url="https://www.lemonde.fr/rss/une.xml"))
+            
         db.session.commit()
 
 # ==========================================
@@ -646,3 +655,4 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
