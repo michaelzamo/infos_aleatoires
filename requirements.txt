@@ -1,4 +1,6 @@
 flask
 feedparser
 beautifulsoup4
+python-dotenv
+
 gunicorn
