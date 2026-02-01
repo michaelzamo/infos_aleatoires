@@ -1,33 +1,64 @@
 from flask import Flask, jsonify, render_template_string, request, Response
+from flask_sqlalchemy import SQLAlchemy
 import feedparser
 import random
 import os
 import json
 import html
 from functools import wraps
-# 1. Import de la gestion des variables d'environnement
-from dotenv import load_dotenv 
+from dotenv import load_dotenv
 
-# 2. Chargement du fichier .env
 load_dotenv()
 
 app = Flask(__name__)
 
 # ==========================================
-# CONFIGURATION DE SÉCURITÉ
+# CONFIGURATION BASE DE DONNÉES & SÉCURITÉ
 # ==========================================
-# 3. Récupération sécurisée des identifiants
 ADMIN_USERNAME = os.environ.get('ADMIN_USER')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASS')
 
-# Si les variables n'existent pas (pas de .env ou pas de config hébergeur),
-# on met des valeurs par défaut pour éviter le crash, MAIS on prévient dans la console.
+# Fallback sécurité
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-    print("ATTENTION : Utilisation des identifiants par défaut (admin/changezMoi123).")
-    print("Veuillez configurer le fichier .env ou les variables d'environnement pour la production.")
+    print("⚠️  ATTENTION : Identifiants par défaut utilisés (admin/changezMoi123)")
     ADMIN_USERNAME = 'admin'
     ADMIN_PASSWORD = 'changezMoi123'
 
+# Configuration DB : PostgreSQL sur Render OU SQLite en local
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///data.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
+
+# ==========================================
+# MODÈLES (TABLES)
+# ==========================================
+class Feed(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(100), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+
+class SavedArticle(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    category = db.Column(db.String(100))
+    url = db.Column(db.String(500), unique=True, nullable=False)
+    title = db.Column(db.String(500))
+
+# Initialisation de la BDD au démarrage
+with app.app_context():
+    db.create_all()
+    # Si la base est vide, on ajoute un flux par défaut
+    if not Feed.query.first():
+        db.session.add(Feed(category="Actualités", url="https://www.lemonde.fr/rss/une.xml"))
+        db.session.commit()
+
+# ==========================================
+# SÉCURITÉ & UTILITAIRES
+# ==========================================
 def check_auth(username, password):
     return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
 
@@ -61,81 +92,17 @@ def is_safe_url(url):
     return True, ""
 
 # ==========================================
-# GESTION DES FICHIERS
+# LOGIQUE MÉTIER (Adaptée BDD)
 # ==========================================
-FILES = {'feeds': 'feeds.txt', 'saved': 'saved_links.txt'}
-
-def load_feeds_config():
-    feeds_data = {}
-    current_category = None
-    if not os.path.exists(FILES['feeds']):
-        with open(FILES['feeds'], 'w', encoding='utf-8') as f:
-            f.write("[Actualités]\nhttps://www.lemonde.fr/rss/une.xml\n")
-    try:
-        with open(FILES['feeds'], 'r', encoding='utf-8') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'): continue
-                if line.startswith('[') and line.endswith(']'):
-                    current_category = line[1:-1]
-                    feeds_data[current_category] = []
-                elif current_category and line.startswith('http'):
-                    feeds_data[current_category].append(line)
-    except Exception: return {}
-    return feeds_data
-
-def save_feeds_config(data):
-    try:
-        with open(FILES['feeds'], 'w', encoding='utf-8') as f:
-            for category, urls in data.items():
-                f.write(f"[{category}]\n")
-                for url in urls:
-                    f.write(f"{url}\n")
-                f.write("\n")
-        return True
-    except Exception: return False
-
-def get_saved_links(category_filter=None):
-    links = []
-    if not os.path.exists(FILES['saved']): return links
-    try:
-        with open(FILES['saved'], 'r', encoding='utf-8') as f:
-            for line in f:
-                parts = line.strip().split('|')
-                if len(parts) < 2: continue
-                if len(parts) == 2: cat, url, title = "Général", parts[0], parts[1]
-                else: cat, url, title = parts[0], parts[1], "|".join(parts[2:])
-                
-                if url == 'None' or not url.startswith('http'): continue
-                if category_filter and cat != category_filter: continue
-                links.append({'category': cat, 'url': url, 'title': title})
-    except: pass
-    return links
-
-def save_link_to_file(category, url, title):
-    if not url or url == 'None': return False
-    all_links = get_saved_links()
-    for l in all_links:
-        if l['url'] == url: return False
-    with open(FILES['saved'], 'a', encoding='utf-8') as f:
-        clean_title = title.replace('\n', ' ').replace('\r', '')
-        f.write(f"{category}|{url}|{clean_title}\n")
-    return True
-
-def delete_link_from_file(url_to_delete):
-    if not os.path.exists(FILES['saved']): return False
-    lines = []
-    deleted = False
-    with open(FILES['saved'], 'r', encoding='utf-8') as f:
-        for line in f:
-            parts = line.strip().split('|')
-            u = parts[0] if len(parts)==2 else parts[1] if len(parts)>=3 else ""
-            if u == url_to_delete: deleted = True
-            else: lines.append(line)
-    if deleted:
-        with open(FILES['saved'], 'w', encoding='utf-8') as f:
-            f.writelines(lines)
-    return deleted
+def get_feeds_data():
+    feeds = Feed.query.all()
+    data = {}
+    for f in feeds:
+        if f.category not in data:
+            data[f.category] = []
+        data[f.category].append(f.url)
+    if not data: return {}
+    return data
 
 # ==========================================
 # FRONTEND
@@ -143,7 +110,7 @@ def delete_link_from_file(url_to_delete):
 @app.route('/')
 @requires_auth
 def home():
-    feeds_config = load_feeds_config()
+    feeds_config = get_feeds_data()
     categories = list(feeds_config.keys())
     if not categories: categories = ["Aucune catégorie"]
 
@@ -181,26 +148,17 @@ def home():
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
                 background-color: var(--bg-body); color: var(--text-main);
                 transition: background 0.3s;
-                /* C'est la taille globale qui varie */
                 font-size: calc(16px * var(--font-scale));
             }
 
-            /* --- CORRECTIF TAILLE FIXE --- */
             .settings-container {
                 display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
                 background:var(--tag-bg); padding:10px; border-radius:8px;
-                font-size: 1rem !important; /* Force une taille fixe (16px) */
+                font-size: 1rem !important; 
             }
-            
-            /* On force les enfants du panneau à hériter de la taille fixe */
-            .settings-container select, 
-            .settings-container input, 
-            .settings-container span,
-            .settings-container label {
+            .settings-container select, .settings-container input, .settings-container span, .settings-container label {
                 font-size: 1em !important; 
             }
-            
-            /* Les autres inputs (recherche, etc) hors settings suivent le corps du texte */
             button, select, input { font-size: 1em; }
 
             .card { 
@@ -552,7 +510,7 @@ def home():
 @requires_auth
 def get_random():
     cat = request.args.get('category')
-    cfg = load_feeds_config()
+    cfg = get_feeds_data()
     urls = cfg.get(cat, [])
     if not urls: return jsonify({"error": "Catégorie vide"})
     try:
@@ -575,7 +533,7 @@ def get_random():
 @requires_auth
 def test_sources():
     cat = request.args.get('category')
-    cfg = load_feeds_config()
+    cfg = get_feeds_data()
     urls = cfg.get(cat, [])
     rep = []
     for u in urls:
@@ -588,7 +546,7 @@ def test_sources():
 @app.route('/api/feeds/get_all')
 @requires_auth
 def get_all_feeds():
-    return jsonify(load_feeds_config())
+    return jsonify(get_feeds_data())
 
 @app.route('/api/feeds/manage', methods=['POST'])
 @requires_auth
@@ -598,23 +556,29 @@ def manage_feeds():
     cat = d.get('category')
     url = d.get('url')
     
-    config = load_feeds_config()
-    
     try:
         if action == 'add_cat':
-            if cat and cat not in config: config[cat] = []
+            if cat and not Feed.query.filter_by(category=cat).first():
+                # On ajoute un flux vide ou placeholder si nécessaire, 
+                # mais ici on attendra qu'une URL soit ajoutée pour vraiment peupler
+                pass # En BDD, une catégorie "existe" quand elle a au moins un flux.
+                # Pour l'UX, on peut tricher en renvoyant success mais la cat n'apparaitra qu'avec un lien
         elif action == 'del_cat':
-            if cat in config: del config[cat]
+            Feed.query.filter_by(category=cat).delete()
+            db.session.commit()
+            
         elif action == 'add_url':
             is_valid, error_msg = is_safe_url(url)
-            if not is_valid:
-                return jsonify({"success": False, "msg": error_msg})
-                
-            if cat in config and url not in config[cat]: config[cat].append(url.strip())
-        elif action == 'del_url':
-            if cat in config and url in config[cat]: config[cat].remove(url)
+            if not is_valid: return jsonify({"success": False, "msg": error_msg})
             
-        save_feeds_config(config)
+            if not Feed.query.filter_by(category=cat, url=url.strip()).first():
+                db.session.add(Feed(category=cat, url=url.strip()))
+                db.session.commit()
+                
+        elif action == 'del_url':
+            Feed.query.filter_by(category=cat, url=url).delete()
+            db.session.commit()
+            
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)})
@@ -624,18 +588,35 @@ def manage_feeds():
 def api_save():
     d = request.json
     url_to_save = d.get('url') or d.get('link')
-    success = save_link_to_file(d.get('category'), url_to_save, d.get('title', 'Sans titre'))
-    return jsonify({"success": success})
+    if not url_to_save: return jsonify({"success": False})
+    
+    try:
+        if not SavedArticle.query.filter_by(url=url_to_save).first():
+            db.session.add(SavedArticle(
+                category=d.get('category', 'Général'),
+                url=url_to_save,
+                title=d.get('title', 'Sans titre')
+            ))
+            db.session.commit()
+        return jsonify({"success": True})
+    except: return jsonify({"success": False})
 
 @app.route('/api/saved-links')
 @requires_auth
 def api_list_saved():
-    return jsonify(get_saved_links(request.args.get('category')))
+    cat = request.args.get('category')
+    query = SavedArticle.query
+    if cat:
+        query = query.filter_by(category=cat)
+    links = query.all()
+    return jsonify([{'category':l.category, 'url':l.url, 'title':l.title} for l in links])
 
 @app.route('/api/delete', methods=['POST'])
 @requires_auth
 def api_delete():
-    delete_link_from_file(request.json.get('url'))
+    url = request.json.get('url')
+    SavedArticle.query.filter_by(url=url).delete()
+    db.session.commit()
     return jsonify({"success": True})
 
 if __name__ == '__main__':
