@@ -22,11 +22,11 @@ L'application met un accent particulier sur l'**accessibilité** (modes daltonie
 ### ⚙️ Administration & Technique
 * **Gestionnaire de Flux :** Interface graphique (bouton ⚙️) pour ajouter/supprimer des catégories et des flux RSS.
 * **Diagnostics :** Outil pour tester la validité des flux et supprimer les liens morts.
-* **Persistance :** Aucune base de données complexe, tout est stocké dans des fichiers texte (`feeds.txt`, `saved_links.txt`).
+* **Persistance :** Aucune base de données complexe, tout est stocké dans des fichiers texte.
 
-### 🔒 Sécurité
-* **Authentification :** Protection par mot de passe (Basic Auth).
-* **Anti-XSS :** Nettoyage des titres et sources pour prévenir l'injection de code.
+### 🔒 Sécurité Avancée
+* **Authentification :** Protection par mot de passe via variables d'environnement.
+* **Anti-XSS :** Nettoyage des données pour prévenir l'injection de code.
 * **Anti-SSRF :** Protection contre les requêtes vers le réseau local ou les métadonnées cloud.
 
 ---
@@ -41,20 +41,24 @@ L'application met un accent particulier sur l'**accessibilité** (modes daltonie
 Placez le fichier `app.py` dans un dossier.
 
 ### 2. Installer les dépendances
-Créez un fichier `requirements.txt` avec le contenu suivant :
+Créez un fichier nommé `requirements.txt` à la racine avec le contenu suivant :
 ```text
 flask
 feedparser
 beautifulsoup4
+python-dotenv
 gunicorn
 ```
 
-Puis lancez l'installation :
+Puis lancez l'installation dans votre terminal :
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Lancer l'application
+### 3. Configurer la sécurité (Indispensable)
+Voir la section **"Configuration & Sécurité"** ci-dessous pour créer vos identifiants avant de lancer l'application.
+
+### 4. Lancer l'application
 ```bash
 python app.py
 ```
@@ -62,64 +66,57 @@ L'application sera accessible à l'adresse : `http://localhost:5000`
 
 ---
 
-## 🔐 Configuration & Sécurité
+## 🔐 Configuration & Sécurité (Important)
 
-### Identifiants par défaut
-Lors de la première connexion, l'application vous demandera de vous authentifier.
-* **Utilisateur :** `admin`
-* **Mot de passe :** `changezMoi123`
+Pour sécuriser l'application, les identifiants ne sont **jamais** stockés dans le code source. Nous utilisons des variables d'environnement.
 
-### Changer le mot de passe
-Il est **impératif** de changer le mot de passe par défaut pour une mise en ligne.
+### A. En développement (Sur votre ordinateur)
 
-**Méthode 1 : Variables d'environnement (Recommandé)**
-Définissez les variables avant de lancer le script.
+1.  Créez un fichier nommé **`.env`** (sans nom avant le point) à la racine du projet.
+2.  Ajoutez-y vos identifiants secrets :
+    ```ini
+    ADMIN_USER=admin
+    ADMIN_PASS=MonMotDePasseSecret123
+    ```
+3.  **Important :** Si vous utilisez Git, assurez-vous d'avoir un fichier `.gitignore` contenant la ligne `.env` pour ne jamais publier ce fichier sur Internet.
 
-*Sur Linux/Mac :*
-```bash
-export ADMIN_USER="monNom"
-export ADMIN_PASS="monNouveauMotDePasse"
-python app.py
-```
+### B. En production (Render, Heroku, etc.)
 
-*Sur Windows (CMD) :*
-```cmd
-set ADMIN_USER=monNom
-set ADMIN_PASS=monNouveauMotDePasse
-python app.py
-```
+Puisque le fichier `.env` n'est pas envoyé sur le serveur (pour des raisons de sécurité), vous devez configurer ces variables dans l'interface de votre hébergeur.
 
-**Méthode 2 : Modifier le code**
-Ouvrez `app.py` et modifiez les lignes suivantes au début du fichier :
-```python
-ADMIN_USERNAME = os.environ.get('ADMIN_USER', 'votre_login')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASS', 'votre_mot_de_passe_secret')
-```
+1.  Allez dans les paramètres de votre application (Settings).
+2.  Cherchez la section **Environment Variables** (ou Config Vars).
+3.  Ajoutez deux variables :
+    * **Key:** `ADMIN_USER`  | **Value:** `admin`
+    * **Key:** `ADMIN_PASS`  | **Value:** `VotreMotDePasseComplexe`
 
 ---
 
 ## 📂 Structure des fichiers
 
-* **`app.py`** : Le cœur de l'application (Backend Flask, Logique, Frontend HTML/JS/CSS).
-* **`feeds.txt`** : Stocke la liste de vos flux RSS (format texte).
-* **`saved_links.txt`** : Stocke vos articles sauvegardés.
-* **`requirements.txt`** : Liste des dépendances.
+* **`app.py`** : Le code source de l'application.
+* **`.env`** : Fichier contenant vos mots de passe (à créer, **ne pas partager**).
+* **`.gitignore`** : Liste des fichiers à ignorer par Git (doit contenir `.env`).
+* **`feeds.txt`** : Stocke la liste de vos flux RSS (généré automatiquement).
+* **`saved_links.txt`** : Stocke vos articles sauvegardés (généré automatiquement).
+* **`requirements.txt`** : Liste des dépendances Python.
 
 ---
 
-## ☁️ Déploiement (Render / Heroku)
+## ☁️ Déploiement (Exemple sur Render)
 
-Cette application est prête pour le cloud ("Cloud Ready").
+Cette application est "Cloud Ready".
 
-1.  Assurez-vous d'avoir le fichier `requirements.txt` à la racine.
-2.  Sur votre hébergeur (ex: Render), définissez la **commande de lancement (Start Command)** :
+1.  Assurez-vous que votre fichier `requirements.txt` contient bien `gunicorn`.
+2.  Sur Render, créez un nouveau "Web Service".
+3.  Connectez votre dépôt GitHub.
+4.  Définissez la **Start Command** :
     ```bash
     gunicorn app:app
     ```
-3.  Ajoutez vos **Variables d'Environnement** (`ADMIN_USER`, `ADMIN_PASS`) dans l'interface de votre hébergeur.
-4.  L'application écoutera automatiquement sur le port défini par l'hébergeur.
+5.  N'oubliez pas de définir vos variables d'environnement (`ADMIN_USER` et `ADMIN_PASS`) dans l'onglet "Environment".
 
-> **⚠️ Important :** En production, assurez-vous toujours d'utiliser le protocole **HTTPS** pour chiffrer votre mot de passe lors de la connexion.
+> **⚠️ Note HTTPS :** En production, assurez-vous toujours d'accéder à votre site via **HTTPS** (le cadenas 🔒) pour que votre mot de passe soit chiffré lors de la connexion. Les hébergeurs comme Render l'activent par défaut.
 
 ---
 
