@@ -5,14 +5,24 @@ import os
 import json
 import html
 from functools import wraps
+from dotenv import load_dotenv  # <--- 1. Import de la librairie
+
+# 2. Chargement des variables du fichier .env
+load_dotenv()
 
 app = Flask(__name__)
 
 # ==========================================
-# CONFIGURATION DE SÉCURITÉ (A MODIFIER !)
+# CONFIGURATION DE SÉCURITÉ
 # ==========================================
-ADMIN_USERNAME = os.environ.get('ADMIN_USER', 'admin')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASS', 'changezMoi123')
+# 3. On récupère les valeurs. Si elles n'existent pas, on bloque ou on met une erreur.
+ADMIN_USERNAME = os.environ.get('ADMIN_USER')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASS')
+
+# Sécurité : On empêche le démarrage si les secrets ne sont pas définis
+if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+    raise RuntimeError("Erreur critique : Les variables ADMIN_USER et ADMIN_PASS ne sont pas définies.")
+
 
 def check_auth(username, password):
     """Vérifie les identifiants."""
@@ -637,3 +647,4 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
