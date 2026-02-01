@@ -62,7 +62,7 @@ class SavedArticle(db.Model):
 with app.app_context():
     # Décommentez la ligne suivante UNIQUEMENT pour le premier déploiement 
     # afin de corriger l'erreur de colonne manquante :
-    db.drop_all() 
+    #db.drop_all() 
     
     db.create_all()
     
@@ -655,4 +655,5 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
 
