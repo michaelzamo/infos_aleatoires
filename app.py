@@ -384,4 +384,260 @@ def home():
             }
 
             async function loadManagerData() {
-                const res = await fetch('/api/feed
+                const res = await fetch('/api/feeds/get_all');
+                const data = await res.json();
+                renderManager(data);
+            }
+
+            function renderManager(data) {
+                const div = document.getElementById('managerContent');
+                let html = '';
+                for (const [cat, urls] of Object.entries(data)) {
+                    html += `
+                    <div style="margin-top:15px; border-top:1px solid #eee; padding-top:5px;">
+                        <div class="man-row" style="font-weight:bold;">
+                            <span>${cat}</span>
+                            <button class="btn-small btn-del" onclick="apiManage('del_cat', '${cat}')">🗑 Cat</button>
+                        </div>
+                        <div class="man-row">
+                            <input type="text" id="newUrl_${cat}" class="man-input" placeholder="http://...">
+                            <button class="btn-small btn-add" onclick="apiManage('add_url', '${cat}', 'newUrl_${cat}')">+</button>
+                        </div>
+                        <div class="feed-list">`;
+                    
+                    urls.forEach(url => {
+                        html += `
+                        <div class="man-row">
+                            <span style="overflow:hidden; text-overflow:ellipsis;">${url.replace('https://','').replace('http://','')}</span>
+                            <button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${url}')">🗑</button>
+                        </div>`;
+                    });
+                    html += `</div></div>`;
+                }
+                div.innerHTML = html;
+            }
+
+            async function apiManage(action, category=null, inputId=null, url=null) {
+                let payload = { action: action, category: category };
+                
+                if (inputId) {
+                    const val = document.getElementById(inputId).value;
+                    if(!val) return;
+                    payload.url = val;
+                } else if (url) {
+                    payload.url = url;
+                } else if (action === 'add_cat') {
+                    payload.category = document.getElementById('newCatInput').value;
+                    if(!payload.category) return;
+                }
+
+                if ((action === 'add_url') && payload.url) {
+                    if (!payload.url.startsWith('http')) {
+                        alert("L'URL doit commencer par http:// ou https://");
+                        return;
+                    }
+                }
+
+                if(action.includes('del') && !confirm(getTrans('msg_confirm'))) return;
+
+                const res = await fetch('/api/feeds/manage', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if(json.success) {
+                    if(action.includes('cat')) location.reload(); 
+                    else loadManagerData();
+                    if(inputId) document.getElementById(inputId).value = '';
+                    if(action === 'add_cat') document.getElementById('newCatInput').value = '';
+                } else {
+                    alert('Erreur: ' + json.msg);
+                }
+            }
+
+            function resetView(){
+                currentData = null; document.getElementById('saveBtn').style.display='none';
+                document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
+                loadSavedLinks();
+            }
+
+            async function fetchRandomArticle(){
+                const cat = document.getElementById('categorySelect').value;
+                const content = document.getElementById('content');
+                const btn = document.getElementById('mainBtn');
+                
+                content.innerHTML = '<p>'+getTrans('msg_loading')+'</p>';
+                btn.disabled=true; btn.style.opacity="0.7";
+                document.getElementById('saveBtn').style.display='none';
+
+                try {
+                    const r = await fetch('/get-random?category='+encodeURIComponent(cat));
+                    const d = await r.json();
+                    btn.disabled=false; btn.style.opacity="1";
+                    
+                    if(d.error){ content.innerHTML='<p class="status-err">'+d.error+'</p>'; return;}
+                    currentData = {...d, category: cat};
+                    
+                    document.getElementById('saveBtn').style.display='inline-block';
+                    content.innerHTML = `
+                        <div><span class="source-tag">${d.source}</span></div>
+                        <h2>${d.title}</h2>
+                        <p>${d.summary}</p>
+                        <a href="${d.link}" target="_blank" class="btn btn-read">${getTrans('btn_read')}</a>
+                    `;
+                } catch(e){ content.innerHTML='<p class="status-err">Erreur</p>'; btn.disabled=false; }
+            }
+
+            async function saveCurrentArticle(){
+                if(!currentData) return;
+                await fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body: JSON.stringify({
+                        category: currentData.category,
+                        url: currentData.link || currentData.url, 
+                        title: currentData.title
+                    })
+                });
+                loadSavedLinks();
+            }
+            async function loadSavedLinks(){
+                const cat = document.getElementById('categorySelect').value;
+                const r = await fetch('/api/saved-links?category='+encodeURIComponent(cat));
+                const l = await r.json();
+                const ul = document.getElementById('savedList');
+                ul.innerHTML = '';
+                l.forEach(i => {
+                    ul.innerHTML += `<li class="list-item">
+                        <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${i.title}</a>
+                        <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')">🗑</button>
+                    </li>`;
+                });
+            }
+            async function deleteSaved(url){
+                if(confirm(getTrans('msg_confirm'))) {
+                    await fetch('/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url})});
+                    loadSavedLinks();
+                }
+            }
+
+            async function runDiagnostics(){
+                const cat = document.getElementById('categorySelect').value;
+                const div = document.getElementById('test-results');
+                div.style.display='block'; div.innerHTML = getTrans('msg_loading');
+                
+                const r = await fetch('/test-sources?category='+encodeURIComponent(cat));
+                const d = await r.json();
+                
+                let h = '';
+                d.forEach(i => {
+                    const delBtn = i.valid ? '' : `<button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${i.url}')" title="Supprimer ce flux HS">🗑</button>`;
+                    const status = i.valid ? `<span class="status-ok">${getTrans('status_ok')}</span>` : `<span class="status-err">${getTrans('status_err')}</span>`;
+                    
+                    h += `<div class="list-item">
+                        <span class="list-label" title="${i.url}">${i.url.replace('https://','')}</span>
+                        <div style="display:flex; gap:5px; align-items:center;">${status} ${delBtn}</div>
+                    </div>`;
+                });
+                div.innerHTML = h || getTrans('msg_empty');
+            }
+        </script>
+    </body>
+    </html>
+    ''', categories=categories)
+
+# ==========================================
+# API ENDPOINTS
+# ==========================================
+
+@app.route('/get-random')
+@requires_auth
+def get_random():
+    cat = request.args.get('category')
+    cfg = load_feeds_config()
+    urls = cfg.get(cat, [])
+    if not urls: return jsonify({"error": "Catégorie vide"})
+    try:
+        url = random.choice(urls)
+        feed = feedparser.parse(url)
+        if not feed.entries: return jsonify({"error": "Flux vide", "source": url})
+        art = random.choice(feed.entries)
+        summary = art.get('summary', '')
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(summary, "html.parser")
+        return jsonify({
+            "source": html.escape(feed.feed.get('title', 'Source')),
+            "title": html.escape(art.get('title', 'No Title')),
+            "link": art.get('link', '#'),
+            "summary": soup.get_text()[:250] + "..."
+        })
+    except Exception as e: return jsonify({"error": str(e)})
+
+@app.route('/test-sources')
+@requires_auth
+def test_sources():
+    cat = request.args.get('category')
+    cfg = load_feeds_config()
+    urls = cfg.get(cat, [])
+    rep = []
+    for u in urls:
+        try:
+            f = feedparser.parse(u)
+            rep.append({"url": u, "valid": (hasattr(f,'entries') and len(f.entries)>0)})
+        except: rep.append({"url": u, "valid": False})
+    return jsonify(rep)
+
+@app.route('/api/feeds/get_all')
+@requires_auth
+def get_all_feeds():
+    return jsonify(load_feeds_config())
+
+@app.route('/api/feeds/manage', methods=['POST'])
+@requires_auth
+def manage_feeds():
+    d = request.json
+    action = d.get('action')
+    cat = d.get('category')
+    url = d.get('url')
+    
+    config = load_feeds_config()
+    
+    try:
+        if action == 'add_cat':
+            if cat and cat not in config: config[cat] = []
+        elif action == 'del_cat':
+            if cat in config: del config[cat]
+        elif action == 'add_url':
+            is_valid, error_msg = is_safe_url(url)
+            if not is_valid:
+                return jsonify({"success": False, "msg": error_msg})
+                
+            if cat in config and url not in config[cat]: config[cat].append(url.strip())
+        elif action == 'del_url':
+            if cat in config and url in config[cat]: config[cat].remove(url)
+            
+        save_feeds_config(config)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+@app.route('/api/save', methods=['POST'])
+@requires_auth
+def api_save():
+    d = request.json
+    url_to_save = d.get('url') or d.get('link')
+    success = save_link_to_file(d.get('category'), url_to_save, d.get('title', 'Sans titre'))
+    return jsonify({"success": success})
+
+@app.route('/api/saved-links')
+@requires_auth
+def api_list_saved():
+    return jsonify(get_saved_links(request.args.get('category')))
+
+@app.route('/api/delete', methods=['POST'])
+@requires_auth
+def api_delete():
+    delete_link_from_file(request.json.get('url'))
+    return jsonify({"success": True})
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
