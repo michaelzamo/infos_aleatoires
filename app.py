@@ -3,33 +3,38 @@ from flask_sqlalchemy import SQLAlchemy
 import feedparser
 import random
 import os
-import json
 import html
 from functools import wraps
 from dotenv import load_dotenv
 
+# Charge les variables d'environnement
 load_dotenv()
 
 app = Flask(__name__)
 
 # ==========================================
-# CONFIGURATION BASE DE DONNÉES & SÉCURITÉ
+# CONFIGURATION ROBUSTE
 # ==========================================
+basedir = os.path.abspath(os.path.dirname(__file__))
+
 ADMIN_USERNAME = os.environ.get('ADMIN_USER')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASS')
 
-# Fallback sécurité
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-    print("⚠️  ATTENTION : Identifiants par défaut utilisés (admin/changezMoi123)")
+    print("⚠️  ATTENTION : Identifiants par défaut (admin/changezMoi123)")
     ADMIN_USERNAME = 'admin'
     ADMIN_PASSWORD = 'changezMoi123'
 
-# Configuration DB : PostgreSQL sur Render OU SQLite en local
+# Configuration BDD : Priorité à PostgreSQL (Render), sinon SQLite avec chemin ABSOLU (Local)
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///data.db'
+if not database_url:
+    # Correction critique : Chemin absolu pour éviter que le fichier ne disparaisse
+    database_url = 'sqlite:///' + os.path.join(basedir, 'data.db')
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -37,9 +42,14 @@ db = SQLAlchemy(app)
 # ==========================================
 # MODÈLES (TABLES)
 # ==========================================
+# Nouvelle table pour gérer les catégories vides
+class Category(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+
 class Feed(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    category = db.Column(db.String(100), nullable=False)
+    category_name = db.Column(db.String(100), nullable=False) # Lien par nom pour simplifier le JS
     url = db.Column(db.String(500), nullable=False)
 
 class SavedArticle(db.Model):
@@ -48,16 +58,18 @@ class SavedArticle(db.Model):
     url = db.Column(db.String(500), unique=True, nullable=False)
     title = db.Column(db.String(500))
 
-# Initialisation de la BDD au démarrage
+# Initialisation BDD
 with app.app_context():
     db.create_all()
-    # Si la base est vide, on ajoute un flux par défaut
-    if not Feed.query.first():
-        db.session.add(Feed(category="Actualités", url="https://www.lemonde.fr/rss/une.xml"))
+    # Données par défaut si vide
+    if not Category.query.first():
+        default_cat = "Actualités"
+        db.session.add(Category(name=default_cat))
+        db.session.add(Feed(category_name=default_cat, url="https://www.lemonde.fr/rss/une.xml"))
         db.session.commit()
 
 # ==========================================
-# SÉCURITÉ & UTILITAIRES
+# SÉCURITÉ
 # ==========================================
 def check_auth(username, password):
     return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
@@ -92,16 +104,21 @@ def is_safe_url(url):
     return True, ""
 
 # ==========================================
-# LOGIQUE MÉTIER (Adaptée BDD)
+# LOGIQUE MÉTIER
 # ==========================================
-def get_feeds_data():
+def get_full_config():
+    # On récupère d'abord toutes les catégories (même vides)
+    cats = Category.query.all()
+    data = {c.name: [] for c in cats}
+    
+    # On remplit avec les flux
     feeds = Feed.query.all()
-    data = {}
     for f in feeds:
-        if f.category not in data:
-            data[f.category] = []
-        data[f.category].append(f.url)
-    if not data: return {}
+        if f.category_name in data:
+            data[f.category_name].append(f.url)
+        else:
+            # Cas rare : flux orphelin, on recrée la catégorie dans la structure
+            data[f.category_name] = [f.url]
     return data
 
 # ==========================================
@@ -110,7 +127,7 @@ def get_feeds_data():
 @app.route('/')
 @requires_auth
 def home():
-    feeds_config = get_feeds_data()
+    feeds_config = get_full_config()
     categories = list(feeds_config.keys())
     if not categories: categories = ["Aucune catégorie"]
 
@@ -510,7 +527,7 @@ def home():
 @requires_auth
 def get_random():
     cat = request.args.get('category')
-    cfg = get_feeds_data()
+    cfg = get_full_config()
     urls = cfg.get(cat, [])
     if not urls: return jsonify({"error": "Catégorie vide"})
     try:
@@ -533,7 +550,7 @@ def get_random():
 @requires_auth
 def test_sources():
     cat = request.args.get('category')
-    cfg = get_feeds_data()
+    cfg = get_full_config()
     urls = cfg.get(cat, [])
     rep = []
     for u in urls:
@@ -546,7 +563,7 @@ def test_sources():
 @app.route('/api/feeds/get_all')
 @requires_auth
 def get_all_feeds():
-    return jsonify(get_feeds_data())
+    return jsonify(get_full_config())
 
 @app.route('/api/feeds/manage', methods=['POST'])
 @requires_auth
@@ -558,25 +575,32 @@ def manage_feeds():
     
     try:
         if action == 'add_cat':
-            if cat and not Feed.query.filter_by(category=cat).first():
-                # On ajoute un flux vide ou placeholder si nécessaire, 
-                # mais ici on attendra qu'une URL soit ajoutée pour vraiment peupler
-                pass # En BDD, une catégorie "existe" quand elle a au moins un flux.
-                # Pour l'UX, on peut tricher en renvoyant success mais la cat n'apparaitra qu'avec un lien
+            # FIX: On sauvegarde vraiment la catégorie
+            if cat and not Category.query.filter_by(name=cat).first():
+                db.session.add(Category(name=cat))
+                db.session.commit()
+        
         elif action == 'del_cat':
-            Feed.query.filter_by(category=cat).delete()
+            # Suppression en cascade manuelle (pour être sûr)
+            Category.query.filter_by(name=cat).delete()
+            Feed.query.filter_by(category_name=cat).delete()
             db.session.commit()
             
         elif action == 'add_url':
             is_valid, error_msg = is_safe_url(url)
             if not is_valid: return jsonify({"success": False, "msg": error_msg})
             
-            if not Feed.query.filter_by(category=cat, url=url.strip()).first():
-                db.session.add(Feed(category=cat, url=url.strip()))
+            # On s'assure que la catégorie existe
+            if not Category.query.filter_by(name=cat).first():
+                 db.session.add(Category(name=cat))
+            
+            # On ajoute le flux
+            if not Feed.query.filter_by(category_name=cat, url=url.strip()).first():
+                db.session.add(Feed(category_name=cat, url=url.strip()))
                 db.session.commit()
                 
         elif action == 'del_url':
-            Feed.query.filter_by(category=cat, url=url).delete()
+            Feed.query.filter_by(category_name=cat, url=url).delete()
             db.session.commit()
             
         return jsonify({"success": True})
