@@ -5,9 +5,10 @@ import os
 import json
 import html
 from functools import wraps
-from dotenv import load_dotenv  # <--- 1. Import de la librairie
+# 1. Import de la gestion des variables d'environnement
+from dotenv import load_dotenv 
 
-# 2. Chargement des variables du fichier .env
+# 2. Chargement du fichier .env
 load_dotenv()
 
 app = Flask(__name__)
@@ -15,27 +16,27 @@ app = Flask(__name__)
 # ==========================================
 # CONFIGURATION DE SÉCURITÉ
 # ==========================================
-# 3. On récupère les valeurs. Si elles n'existent pas, on bloque ou on met une erreur.
+# 3. Récupération sécurisée des identifiants
 ADMIN_USERNAME = os.environ.get('ADMIN_USER')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASS')
 
-# Sécurité : On empêche le démarrage si les secrets ne sont pas définis
+# Si les variables n'existent pas (pas de .env ou pas de config hébergeur),
+# on met des valeurs par défaut pour éviter le crash, MAIS on prévient dans la console.
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-    raise RuntimeError("Erreur critique : Les variables ADMIN_USER et ADMIN_PASS ne sont pas définies.")
-
+    print("ATTENTION : Utilisation des identifiants par défaut (admin/changezMoi123).")
+    print("Veuillez configurer le fichier .env ou les variables d'environnement pour la production.")
+    ADMIN_USERNAME = 'admin'
+    ADMIN_PASSWORD = 'changezMoi123'
 
 def check_auth(username, password):
-    """Vérifie les identifiants."""
     return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
 
 def authenticate():
-    """Envoie une demande d'authentification."""
     return Response(
     'Connexion requise.\n', 401,
     {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
 def requires_auth(f):
-    """Décorateur pour protéger les routes."""
     @wraps(f)
     def decorated(*args, **kwargs):
         auth = request.authorization
@@ -45,39 +46,24 @@ def requires_auth(f):
     return decorated
 
 def is_safe_url(url):
-    """
-    Vérifie que l'URL est sûre (Anti-SSRF).
-    Empêche l'accès au réseau local ou au serveur lui-même.
-    """
     if not url: return False, "URL vide"
-    
     url_lower = url.strip().lower()
-    
-    # 1. Vérification du protocole
     if not url_lower.startswith(('http://', 'https://')):
         return False, "Protocole invalide (http ou https requis)"
     
-    # 2. Liste noire des adresses locales/privées
     forbidden_hosts = [
-        'localhost', '127.', '0.0.0.0',  # Boucle locale
-        '192.168.', '10.', '172.16.', '172.17.', # Réseaux privés classiques
-        '169.254.', # Métadonnées Cloud (AWS, GCP, Azure...)
-        '::1', 'fd00:' # IPv6 local
+        'localhost', '127.', '0.0.0.0', '192.168.', '10.', '172.16.', '172.17.', 
+        '169.254.', '::1', 'fd00:'
     ]
-    
     for host in forbidden_hosts:
         if f"//{host}" in url_lower or f"@{host}" in url_lower or url_lower.startswith(host):
-             return False, "Les adresses locales/privées sont interdites pour sécurité."
-             
+             return False, "Les adresses locales/privées sont interdites."
     return True, ""
 
 # ==========================================
 # GESTION DES FICHIERS
 # ==========================================
-FILES = {
-    'feeds': 'feeds.txt',
-    'saved': 'saved_links.txt'
-}
+FILES = {'feeds': 'feeds.txt', 'saved': 'saved_links.txt'}
 
 def load_feeds_config():
     feeds_data = {}
@@ -85,7 +71,6 @@ def load_feeds_config():
     if not os.path.exists(FILES['feeds']):
         with open(FILES['feeds'], 'w', encoding='utf-8') as f:
             f.write("[Actualités]\nhttps://www.lemonde.fr/rss/une.xml\n")
-    
     try:
         with open(FILES['feeds'], 'r', encoding='utf-8') as f:
             for line in f:
@@ -108,9 +93,7 @@ def save_feeds_config(data):
                     f.write(f"{url}\n")
                 f.write("\n")
         return True
-    except Exception as e:
-        print(f"Erreur écriture: {e}")
-        return False
+    except Exception: return False
 
 def get_saved_links(category_filter=None):
     links = []
@@ -120,12 +103,10 @@ def get_saved_links(category_filter=None):
             for line in f:
                 parts = line.strip().split('|')
                 if len(parts) < 2: continue
-                
                 if len(parts) == 2: cat, url, title = "Général", parts[0], parts[1]
                 else: cat, url, title = parts[0], parts[1], "|".join(parts[2:])
-
+                
                 if url == 'None' or not url.startswith('http'): continue
-
                 if category_filter and cat != category_filter: continue
                 links.append({'category': cat, 'url': url, 'title': title})
     except: pass
@@ -136,7 +117,6 @@ def save_link_to_file(category, url, title):
     all_links = get_saved_links()
     for l in all_links:
         if l['url'] == url: return False
-    
     with open(FILES['saved'], 'a', encoding='utf-8') as f:
         clean_title = title.replace('\n', ' ').replace('\r', '')
         f.write(f"{category}|{url}|{clean_title}\n")
@@ -201,9 +181,28 @@ def home():
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
                 background-color: var(--bg-body); color: var(--text-main);
                 transition: background 0.3s;
+                /* C'est la taille globale qui varie */
                 font-size: calc(16px * var(--font-scale));
             }
+
+            /* --- CORRECTIF TAILLE FIXE --- */
+            .settings-container {
+                display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
+                background:var(--tag-bg); padding:10px; border-radius:8px;
+                font-size: 1rem !important; /* Force une taille fixe (16px) */
+            }
+            
+            /* On force les enfants du panneau à hériter de la taille fixe */
+            .settings-container select, 
+            .settings-container input, 
+            .settings-container span,
+            .settings-container label {
+                font-size: 1em !important; 
+            }
+            
+            /* Les autres inputs (recherche, etc) hors settings suivent le corps du texte */
             button, select, input { font-size: 1em; }
+
             .card { 
                 background: var(--bg-card); padding: 2rem; border-radius: var(--border-rad); 
                 box-shadow: var(--shadow); max-width: 500px; width: 100%; 
@@ -212,7 +211,6 @@ def home():
             .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
             .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; }
             
-            .settings-container { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; background:var(--tag-bg); padding:10px; border-radius:8px; }
             .settings-row { display:flex; justify-content:space-between; align-items:center; }
             .setting-label { font-size:0.8em; font-weight:bold; color:var(--text-sub); }
             .a11y-select { padding:4px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); max-width:120px;}
@@ -386,265 +384,4 @@ def home():
             }
 
             async function loadManagerData() {
-                const res = await fetch('/api/feeds/get_all');
-                const data = await res.json();
-                renderManager(data);
-            }
-
-            function renderManager(data) {
-                const div = document.getElementById('managerContent');
-                let html = '';
-                for (const [cat, urls] of Object.entries(data)) {
-                    html += `
-                    <div style="margin-top:15px; border-top:1px solid #eee; padding-top:5px;">
-                        <div class="man-row" style="font-weight:bold;">
-                            <span>${cat}</span>
-                            <button class="btn-small btn-del" onclick="apiManage('del_cat', '${cat}')">🗑 Cat</button>
-                        </div>
-                        <div class="man-row">
-                            <input type="text" id="newUrl_${cat}" class="man-input" placeholder="http://...">
-                            <button class="btn-small btn-add" onclick="apiManage('add_url', '${cat}', 'newUrl_${cat}')">+</button>
-                        </div>
-                        <div class="feed-list">`;
-                    
-                    urls.forEach(url => {
-                        html += `
-                        <div class="man-row">
-                            <span style="overflow:hidden; text-overflow:ellipsis;">${url.replace('https://','').replace('http://','')}</span>
-                            <button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${url}')">🗑</button>
-                        </div>`;
-                    });
-                    html += `</div></div>`;
-                }
-                div.innerHTML = html;
-            }
-
-            async function apiManage(action, category=null, inputId=null, url=null) {
-                let payload = { action: action, category: category };
-                
-                if (inputId) {
-                    const val = document.getElementById(inputId).value;
-                    if(!val) return;
-                    payload.url = val;
-                } else if (url) {
-                    payload.url = url;
-                } else if (action === 'add_cat') {
-                    payload.category = document.getElementById('newCatInput').value;
-                    if(!payload.category) return;
-                }
-
-                // SECURITY: URL Validation (Client-side pre-check)
-                if ((action === 'add_url') && payload.url) {
-                    // Basic sanity check to improve UX before server rejects it
-                    if (!payload.url.startsWith('http')) {
-                        alert("L'URL doit commencer par http:// ou https://");
-                        return;
-                    }
-                }
-
-                if(action.includes('del') && !confirm(getTrans('msg_confirm'))) return;
-
-                const res = await fetch('/api/feeds/manage', {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                });
-                const json = await res.json();
-                if(json.success) {
-                    if(action.includes('cat')) location.reload(); 
-                    else loadManagerData();
-                    if(inputId) document.getElementById(inputId).value = '';
-                    if(action === 'add_cat') document.getElementById('newCatInput').value = '';
-                } else {
-                    alert('Erreur: ' + json.msg);
-                }
-            }
-
-            function resetView(){
-                currentData = null; document.getElementById('saveBtn').style.display='none';
-                document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
-                loadSavedLinks();
-            }
-
-            async function fetchRandomArticle(){
-                const cat = document.getElementById('categorySelect').value;
-                const content = document.getElementById('content');
-                const btn = document.getElementById('mainBtn');
-                
-                content.innerHTML = '<p>'+getTrans('msg_loading')+'</p>';
-                btn.disabled=true; btn.style.opacity="0.7";
-                document.getElementById('saveBtn').style.display='none';
-
-                try {
-                    const r = await fetch('/get-random?category='+encodeURIComponent(cat));
-                    const d = await r.json();
-                    btn.disabled=false; btn.style.opacity="1";
-                    
-                    if(d.error){ content.innerHTML='<p class="status-err">'+d.error+'</p>'; return;}
-                    currentData = {...d, category: cat};
-                    
-                    document.getElementById('saveBtn').style.display='inline-block';
-                    content.innerHTML = `
-                        <div><span class="source-tag">${d.source}</span></div>
-                        <h2>${d.title}</h2>
-                        <p>${d.summary}</p>
-                        <a href="${d.link}" target="_blank" class="btn btn-read">${getTrans('btn_read')}</a>
-                    `;
-                } catch(e){ content.innerHTML='<p class="status-err">Erreur</p>'; btn.disabled=false; }
-            }
-
-            async function saveCurrentArticle(){
-                if(!currentData) return;
-                await fetch('/api/save', { method:'POST', headers:{'Content-Type':'application/json'},
-                    body: JSON.stringify({
-                        category: currentData.category,
-                        url: currentData.link || currentData.url, 
-                        title: currentData.title
-                    })
-                });
-                loadSavedLinks();
-            }
-            async function loadSavedLinks(){
-                const cat = document.getElementById('categorySelect').value;
-                const r = await fetch('/api/saved-links?category='+encodeURIComponent(cat));
-                const l = await r.json();
-                const ul = document.getElementById('savedList');
-                ul.innerHTML = '';
-                l.forEach(i => {
-                    ul.innerHTML += `<li class="list-item">
-                        <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${i.title}</a>
-                        <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')">🗑</button>
-                    </li>`;
-                });
-            }
-            async function deleteSaved(url){
-                if(confirm(getTrans('msg_confirm'))) {
-                    await fetch('/api/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url})});
-                    loadSavedLinks();
-                }
-            }
-
-            async function runDiagnostics(){
-                const cat = document.getElementById('categorySelect').value;
-                const div = document.getElementById('test-results');
-                div.style.display='block'; div.innerHTML = getTrans('msg_loading');
-                
-                const r = await fetch('/test-sources?category='+encodeURIComponent(cat));
-                const d = await r.json();
-                
-                let h = '';
-                d.forEach(i => {
-                    const delBtn = i.valid ? '' : `<button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${i.url}')" title="Supprimer ce flux HS">🗑</button>`;
-                    const status = i.valid ? `<span class="status-ok">${getTrans('status_ok')}</span>` : `<span class="status-err">${getTrans('status_err')}</span>`;
-                    
-                    h += `<div class="list-item">
-                        <span class="list-label" title="${i.url}">${i.url.replace('https://','')}</span>
-                        <div style="display:flex; gap:5px; align-items:center;">${status} ${delBtn}</div>
-                    </div>`;
-                });
-                div.innerHTML = h || getTrans('msg_empty');
-            }
-        </script>
-    </body>
-    </html>
-    ''', categories=categories)
-
-# ==========================================
-# API ENDPOINTS
-# ==========================================
-
-@app.route('/get-random')
-@requires_auth
-def get_random():
-    cat = request.args.get('category')
-    cfg = load_feeds_config()
-    urls = cfg.get(cat, [])
-    if not urls: return jsonify({"error": "Catégorie vide"})
-    try:
-        url = random.choice(urls)
-        feed = feedparser.parse(url)
-        if not feed.entries: return jsonify({"error": "Flux vide", "source": url})
-        art = random.choice(feed.entries)
-        summary = art.get('summary', '')
-        from bs4 import BeautifulSoup
-        soup = BeautifulSoup(summary, "html.parser")
-        return jsonify({
-            # SÉCURITÉ : Échappement des données envoyées au client (Protection XSS)
-            "source": html.escape(feed.feed.get('title', 'Source')),
-            "title": html.escape(art.get('title', 'No Title')),
-            "link": art.get('link', '#'),
-            "summary": soup.get_text()[:250] + "..."
-        })
-    except Exception as e: return jsonify({"error": str(e)})
-
-@app.route('/test-sources')
-@requires_auth
-def test_sources():
-    cat = request.args.get('category')
-    cfg = load_feeds_config()
-    urls = cfg.get(cat, [])
-    rep = []
-    for u in urls:
-        try:
-            f = feedparser.parse(u)
-            rep.append({"url": u, "valid": (hasattr(f,'entries') and len(f.entries)>0)})
-        except: rep.append({"url": u, "valid": False})
-    return jsonify(rep)
-
-@app.route('/api/feeds/get_all')
-@requires_auth
-def get_all_feeds():
-    return jsonify(load_feeds_config())
-
-@app.route('/api/feeds/manage', methods=['POST'])
-@requires_auth
-def manage_feeds():
-    d = request.json
-    action = d.get('action')
-    cat = d.get('category')
-    url = d.get('url')
-    
-    config = load_feeds_config()
-    
-    try:
-        if action == 'add_cat':
-            if cat and cat not in config: config[cat] = []
-        elif action == 'del_cat':
-            if cat in config: del config[cat]
-        elif action == 'add_url':
-            # SÉCURITÉ : Validation d'URL (Anti-SSRF + Local)
-            is_valid, error_msg = is_safe_url(url)
-            if not is_valid:
-                return jsonify({"success": False, "msg": error_msg})
-                
-            if cat in config and url not in config[cat]: config[cat].append(url.strip())
-        elif action == 'del_url':
-            if cat in config and url in config[cat]: config[cat].remove(url)
-            
-        save_feeds_config(config)
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"success": False, "msg": str(e)})
-
-@app.route('/api/save', methods=['POST'])
-@requires_auth
-def api_save():
-    d = request.json
-    url_to_save = d.get('url') or d.get('link')
-    success = save_link_to_file(d.get('category'), url_to_save, d.get('title', 'Sans titre'))
-    return jsonify({"success": success})
-
-@app.route('/api/saved-links')
-@requires_auth
-def api_list_saved():
-    return jsonify(get_saved_links(request.args.get('category')))
-
-@app.route('/api/delete', methods=['POST'])
-@requires_auth
-def api_delete():
-    delete_link_from_file(request.json.get('url'))
-    return jsonify({"success": True})
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
-
+                const res = await fetch('/api/feed
