@@ -1,17 +1,74 @@
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, Response
 import feedparser
 import random
 import os
 import json
+import html
+from functools import wraps
 
 app = Flask(__name__)
 
+# ==========================================
+# CONFIGURATION DE SÉCURITÉ (A MODIFIER !)
+# ==========================================
+ADMIN_USERNAME = os.environ.get('ADMIN_USER', 'admin')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASS', 'changezMoi123')
+
+def check_auth(username, password):
+    """Vérifie les identifiants."""
+    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+
+def authenticate():
+    """Envoie une demande d'authentification."""
+    return Response(
+    'Connexion requise.\n', 401,
+    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+
+def requires_auth(f):
+    """Décorateur pour protéger les routes."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
+
+def is_safe_url(url):
+    """
+    Vérifie que l'URL est sûre (Anti-SSRF).
+    Empêche l'accès au réseau local ou au serveur lui-même.
+    """
+    if not url: return False, "URL vide"
+    
+    url_lower = url.strip().lower()
+    
+    # 1. Vérification du protocole
+    if not url_lower.startswith(('http://', 'https://')):
+        return False, "Protocole invalide (http ou https requis)"
+    
+    # 2. Liste noire des adresses locales/privées
+    forbidden_hosts = [
+        'localhost', '127.', '0.0.0.0',  # Boucle locale
+        '192.168.', '10.', '172.16.', '172.17.', # Réseaux privés classiques
+        '169.254.', # Métadonnées Cloud (AWS, GCP, Azure...)
+        '::1', 'fd00:' # IPv6 local
+    ]
+    
+    for host in forbidden_hosts:
+        if f"//{host}" in url_lower or f"@{host}" in url_lower or url_lower.startswith(host):
+             return False, "Les adresses locales/privées sont interdites pour sécurité."
+             
+    return True, ""
+
+# ==========================================
+# GESTION DES FICHIERS
+# ==========================================
 FILES = {
     'feeds': 'feeds.txt',
     'saved': 'saved_links.txt'
 }
 
-# --- GESTION FICHIER FEEDS ---
 def load_feeds_config():
     feeds_data = {}
     current_category = None
@@ -45,7 +102,6 @@ def save_feeds_config(data):
         print(f"Erreur écriture: {e}")
         return False
 
-# --- GESTION SAUVEGARDES ---
 def get_saved_links(category_filter=None):
     links = []
     if not os.path.exists(FILES['saved']): return links
@@ -91,8 +147,11 @@ def delete_link_from_file(url_to_delete):
             f.writelines(lines)
     return deleted
 
-# --- FRONTEND ---
+# ==========================================
+# FRONTEND
+# ==========================================
 @app.route('/')
+@requires_auth
 def home():
     feeds_config = load_feeds_config()
     categories = list(feeds_config.keys())
@@ -364,6 +423,15 @@ def home():
                     if(!payload.category) return;
                 }
 
+                // SECURITY: URL Validation (Client-side pre-check)
+                if ((action === 'add_url') && payload.url) {
+                    // Basic sanity check to improve UX before server rejects it
+                    if (!payload.url.startsWith('http')) {
+                        alert("L'URL doit commencer par http:// ou https://");
+                        return;
+                    }
+                }
+
                 if(action.includes('del') && !confirm(getTrans('msg_confirm'))) return;
 
                 const res = await fetch('/api/feeds/manage', {
@@ -470,9 +538,12 @@ def home():
     </html>
     ''', categories=categories)
 
-# --- API ENDPOINTS ---
+# ==========================================
+# API ENDPOINTS
+# ==========================================
 
 @app.route('/get-random')
+@requires_auth
 def get_random():
     cat = request.args.get('category')
     cfg = load_feeds_config()
@@ -487,14 +558,16 @@ def get_random():
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(summary, "html.parser")
         return jsonify({
-            "source": feed.feed.get('title', 'Source'),
-            "title": art.get('title', 'No Title'),
+            # SÉCURITÉ : Échappement des données envoyées au client (Protection XSS)
+            "source": html.escape(feed.feed.get('title', 'Source')),
+            "title": html.escape(art.get('title', 'No Title')),
             "link": art.get('link', '#'),
             "summary": soup.get_text()[:250] + "..."
         })
     except Exception as e: return jsonify({"error": str(e)})
 
 @app.route('/test-sources')
+@requires_auth
 def test_sources():
     cat = request.args.get('category')
     cfg = load_feeds_config()
@@ -508,10 +581,12 @@ def test_sources():
     return jsonify(rep)
 
 @app.route('/api/feeds/get_all')
+@requires_auth
 def get_all_feeds():
     return jsonify(load_feeds_config())
 
 @app.route('/api/feeds/manage', methods=['POST'])
+@requires_auth
 def manage_feeds():
     d = request.json
     action = d.get('action')
@@ -526,7 +601,12 @@ def manage_feeds():
         elif action == 'del_cat':
             if cat in config: del config[cat]
         elif action == 'add_url':
-            if cat in config and url not in config[cat]: config[cat].append(url)
+            # SÉCURITÉ : Validation d'URL (Anti-SSRF + Local)
+            is_valid, error_msg = is_safe_url(url)
+            if not is_valid:
+                return jsonify({"success": False, "msg": error_msg})
+                
+            if cat in config and url not in config[cat]: config[cat].append(url.strip())
         elif action == 'del_url':
             if cat in config and url in config[cat]: config[cat].remove(url)
             
@@ -536,6 +616,7 @@ def manage_feeds():
         return jsonify({"success": False, "msg": str(e)})
 
 @app.route('/api/save', methods=['POST'])
+@requires_auth
 def api_save():
     d = request.json
     url_to_save = d.get('url') or d.get('link')
@@ -543,10 +624,12 @@ def api_save():
     return jsonify({"success": success})
 
 @app.route('/api/saved-links')
+@requires_auth
 def api_list_saved():
     return jsonify(get_saved_links(request.args.get('category')))
 
 @app.route('/api/delete', methods=['POST'])
+@requires_auth
 def api_delete():
     delete_link_from_file(request.json.get('url'))
     return jsonify({"success": True})
