@@ -7,13 +7,12 @@ import html
 from functools import wraps
 from dotenv import load_dotenv
 
-# Charge les variables d'environnement
 load_dotenv()
 
 app = Flask(__name__)
 
 # ==========================================
-# CONFIGURATION ROBUSTE
+# CONFIGURATION
 # ==========================================
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -25,13 +24,11 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     ADMIN_USERNAME = 'admin'
     ADMIN_PASSWORD = 'changezMoi123'
 
-# Configuration BDD : Priorité à PostgreSQL (Render), sinon SQLite avec chemin ABSOLU (Local)
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 if not database_url:
-    # Correction critique : Chemin absolu pour éviter que le fichier ne disparaisse
     database_url = 'sqlite:///' + os.path.join(basedir, 'data.db')
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
@@ -40,16 +37,15 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # ==========================================
-# MODÈLES (TABLES)
+# MODÈLES
 # ==========================================
-# Nouvelle table pour gérer les catégories vides
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True, nullable=False)
 
 class Feed(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    category_name = db.Column(db.String(100), nullable=False) # Lien par nom pour simplifier le JS
+    category_name = db.Column(db.String(100), nullable=False)
     url = db.Column(db.String(500), nullable=False)
 
 class SavedArticle(db.Model):
@@ -58,35 +54,23 @@ class SavedArticle(db.Model):
     url = db.Column(db.String(500), unique=True, nullable=False)
     title = db.Column(db.String(500))
 
-# Initialisation BDD avec reset forcé pour synchroniser la structure
 with app.app_context():
-    # Décommentez la ligne suivante UNIQUEMENT pour le premier déploiement 
-    # afin de corriger l'erreur de colonne manquante :
-    #db.drop_all() 
-    
+    # db.drop_all() # Décommentez une fois si besoin de reset
     db.create_all()
-    
-    # Données par défaut si vide
     if not Category.query.first():
         default_cat = "Actualités"
-        if not Category.query.filter_by(name=default_cat).first():
-            db.session.add(Category(name=default_cat))
-        
-        if not Feed.query.filter_by(category_name=default_cat).first():
-            db.session.add(Feed(category_name=default_cat, url="https://www.lemonde.fr/rss/une.xml"))
-            
+        db.session.add(Category(name=default_cat))
+        db.session.add(Feed(category_name=default_cat, url="https://www.lemonde.fr/rss/une.xml"))
         db.session.commit()
 
 # ==========================================
-# SÉCURITÉ
+# SÉCURITÉ & UTILITAIRES
 # ==========================================
 def check_auth(username, password):
     return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
 
 def authenticate():
-    return Response(
-    'Connexion requise.\n', 401,
-    {'WWW-Authenticate': 'Basic realm="Login Required"'})
+    return Response('Connexion requise.\n', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
 
 def requires_auth(f):
     @wraps(f)
@@ -101,32 +85,21 @@ def is_safe_url(url):
     if not url: return False, "URL vide"
     url_lower = url.strip().lower()
     if not url_lower.startswith(('http://', 'https://')):
-        return False, "Protocole invalide (http ou https requis)"
-    
-    forbidden_hosts = [
-        'localhost', '127.', '0.0.0.0', '192.168.', '10.', '172.16.', '172.17.', 
-        '169.254.', '::1', 'fd00:'
-    ]
-    for host in forbidden_hosts:
+        return False, "Protocole invalide"
+    forbidden = ['localhost', '127.', '0.0.0.0', '192.168.', '10.', '172.16.', '169.254.', '::1']
+    for host in forbidden:
         if f"//{host}" in url_lower or f"@{host}" in url_lower or url_lower.startswith(host):
-             return False, "Les adresses locales/privées sont interdites."
+             return False, "Adresse interdite"
     return True, ""
 
-# ==========================================
-# LOGIQUE MÉTIER
-# ==========================================
 def get_full_config():
-    # On récupère d'abord toutes les catégories (même vides)
-    cats = Category.query.all()
+    cats = Category.query.order_by(Category.name).all()
     data = {c.name: [] for c in cats}
-    
-    # On remplit avec les flux
     feeds = Feed.query.all()
     for f in feeds:
         if f.category_name in data:
             data[f.category_name].append(f.url)
         else:
-            # Cas rare : flux orphelin, on recrée la catégorie dans la structure
             data[f.category_name] = [f.url]
     return data
 
@@ -164,11 +137,6 @@ def home():
                 --tag-bg: #333; --select-bg: #2c2c2c; --select-border: #444;
                 --shadow: rgba(0,0,0,0.5);
             }
-            body.protanopia, body.deuteranopia { --col-primary: #0072B2; --col-success: #56B4E9; --col-error: #D55E00; }
-            body.tritanopia { --col-primary: #000000; --col-success: #009E73; --col-error: #CC79A7; }
-            body.achromatopsia { --col-primary: #000000; --col-success: #000000; --col-error: #000000; }
-            body.dark-mode.achromatopsia { --col-primary: #ffffff; --col-success: #ffffff; --col-error: #ffffff; }
-
             body { 
                 font-family: "Noto Sans", sans-serif; display: flex; justify-content: center; align-items: center; 
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
@@ -176,15 +144,15 @@ def home():
                 transition: background 0.3s;
                 font-size: calc(16px * var(--font-scale));
             }
-
-            .settings-container {
+            
+            /* Styles Fixes pour Outils */
+            .settings-container, #managerSection {
                 display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
                 background:var(--tag-bg); padding:10px; border-radius:8px;
                 font-size: 1rem !important; 
             }
-            .settings-container select, .settings-container input, .settings-container span, .settings-container label {
-                font-size: 1em !important; 
-            }
+            .settings-container *, #managerSection * { font-size: 1em; }
+            
             button, select, input { font-size: 1em; }
 
             .card { 
@@ -209,14 +177,16 @@ def home():
             .btn-read { background:var(--col-success); }
             .btn-test { background:none; border:none; color:var(--text-sub); margin-top:20px; cursor:pointer; text-decoration:underline; font-size:0.8em; }
 
-            #managerSection { display:none; background:var(--bg-body); padding:15px; border-radius:8px; border:1px solid var(--select-border); margin-bottom:20px; }
+            /* Styles spécifiques au nouveau Manager */
+            #managerSection { display:none; border:1px solid var(--select-border); }
             .man-title { font-weight:bold; margin-bottom:10px; border-bottom:1px solid var(--select-border); padding-bottom:5px; }
-            .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; }
-            .man-input { flex-grow:1; margin-right:5px; padding:5px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); }
-            .btn-small { padding:5px 10px; border-radius:4px; border:none; cursor:pointer; color:white; font-size:0.8em; }
+            .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; gap: 5px;}
+            .man-input { flex-grow:1; padding:5px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); }
+            .btn-small { padding:5px 10px; border-radius:4px; border:none; cursor:pointer; color:white; font-size:0.8em; white-space: nowrap;}
             .btn-add { background:var(--col-success); }
-            .btn-del { background:var(--col-error); margin-left:5px;}
-            .feed-list { margin-left:10px; margin-top:5px; border-left:2px solid var(--select-border); padding-left:10px; }
+            .btn-del { background:var(--col-error); }
+            .feed-list { margin-top:10px; border-top:1px solid var(--select-border); padding-top:10px; }
+            .empty-msg { font-style: italic; color: var(--text-sub); font-size: 0.9em; margin-bottom: 10px;}
 
             .list-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--select-border); font-size:0.9em; }
             .list-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:10px; flex-grow:1; text-align:left; }
@@ -256,11 +226,31 @@ def home():
 
             <div id="managerSection">
                 <div class="man-title" data-i18n="man_title">Gestion des flux</div>
+                
                 <div class="man-row">
                     <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie...">
                     <button class="btn-small btn-add" onclick="apiManage('add_cat')" data-i18n="btn_add">Ajouter</button>
                 </div>
-                <div id="managerContent"></div>
+
+                <hr style="width:100%; border:0; border-top:1px solid var(--select-border); margin:10px 0;">
+
+                <div class="man-row">
+                    <label style="font-weight:bold; font-size:0.9em;">Gérer :</label>
+                    <select id="managerCatSelect" class="man-input" onchange="renderFeedList()">
+                        </select>
+                </div>
+                
+                <div class="man-row" style="justify-content: flex-end;">
+                     <button class="btn-small btn-del" onclick="deleteCurrentCategory()">Supprimer cette catégorie</button>
+                </div>
+
+                <div id="feedEditorArea" class="feed-list" style="display:none;">
+                    <div class="man-row">
+                        <input type="text" id="newUrlInput" class="man-input" placeholder="http://...">
+                        <button class="btn-small btn-add" onclick="addUrlToCurrent()">Ajouter URL</button>
+                    </div>
+                    <div id="feedListContainer"></div>
+                </div>
             </div>
             
             <div class="cat-row">
@@ -292,17 +282,19 @@ def home():
 
         <script>
             let currentData = null;
+            let currentManagerData = {}; // Stocke les données pour le manager
+
             const translations = {
                 fr: {
                     app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale",
                     intro_text:"Cliquez pour découvrir.", btn_surprise:"Surprends-moi", btn_save:"💾 Sauvegarder", btn_read:"Lire",
-                    btn_test:"Tester / Nettoyer flux", lbl_saved:"Articles sauvegardés", man_title:"Gestion des flux", btn_add:"Ajouter",
+                    btn_test:"Tester / Nettoyer flux", lbl_saved:"Sauvegardes", man_title:"Gestion des flux", btn_add:"Ajouter",
                     msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?"
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal",
                     intro_text:"Click to discover.", btn_surprise:"Surprise me", btn_save:"💾 Save", btn_read:"Read",
-                    btn_test:"Test / Clean Feeds", lbl_saved:"Saved Articles", man_title:"Feed Manager", btn_add:"Add",
+                    btn_test:"Test / Clean Feeds", lbl_saved:"Saved", man_title:"Feed Manager", btn_add:"Add",
                     msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?"
                 },
                 es: {
@@ -319,38 +311,34 @@ def home():
                 }
             };
 
+            // Init simple settings
             const savedP = localStorage.getItem('colorProfile')||'normal';
             const savedF = localStorage.getItem('fontScale')||'1';
             const savedL = localStorage.getItem('appLang')||'fr';
-            
             if(localStorage.getItem('theme')==='dark') document.body.classList.add('dark-mode');
             applyColorProfile(savedP); document.getElementById('colorBlindSelect').value=savedP;
             applyFontSize(savedF); document.getElementById('fontSlider').value=savedF;
             applyLanguage(savedL); document.getElementById('langSelect').value=savedL;
             
             loadSavedLinks();
-            loadManagerData();
+            // On ne charge les données manager que si on ouvre le panneau
 
+            // --- UI Functions ---
             function toggleTheme(){ 
                 document.body.classList.toggle('dark-mode'); 
                 localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light');
             }
             function changeColorProfile(){ 
-                const p = document.getElementById('colorBlindSelect').value; 
-                applyColorProfile(p); localStorage.setItem('colorProfile', p); 
+                const p = document.getElementById('colorBlindSelect').value; applyColorProfile(p); localStorage.setItem('colorProfile', p); 
             }
             function applyColorProfile(p){
                 document.body.classList.remove('protanopia','deuteranopia','tritanopia','achromatopsia');
                 if(p!=='normal') document.body.classList.add(p);
             }
-            function changeFontSize(){ 
-                const s = document.getElementById('fontSlider').value; 
-                applyFontSize(s); localStorage.setItem('fontScale', s); 
-            }
+            function changeFontSize(){ const s = document.getElementById('fontSlider').value; applyFontSize(s); localStorage.setItem('fontScale', s); }
             function applyFontSize(s){ document.documentElement.style.setProperty('--font-scale', s); }
             function changeLanguage(){ 
-                const l = document.getElementById('langSelect').value; 
-                applyLanguage(l); localStorage.setItem('appLang', l); resetView(); 
+                const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); resetView(); 
             }
             function applyLanguage(l){
                 const t = translations[l];
@@ -361,6 +349,7 @@ def home():
             }
             function getTrans(k){ return translations[document.getElementById('langSelect').value][k] || k; }
 
+            // --- MANAGER LOGIC (Refaite pour ergonomie) ---
             function toggleManager(){
                 const m = document.getElementById('managerSection');
                 m.style.display = m.style.display === 'block' ? 'none' : 'block';
@@ -369,36 +358,58 @@ def home():
 
             async function loadManagerData() {
                 const res = await fetch('/api/feeds/get_all');
-                const data = await res.json();
-                renderManager(data);
+                currentManagerData = await res.json();
+                populateManagerSelect();
             }
 
-            function renderManager(data) {
-                const div = document.getElementById('managerContent');
-                let html = '';
-                for (const [cat, urls] of Object.entries(data)) {
-                    html += `
-                    <div style="margin-top:15px; border-top:1px solid #eee; padding-top:5px;">
-                        <div class="man-row" style="font-weight:bold;">
-                            <span>${cat}</span>
-                            <button class="btn-small btn-del" onclick="apiManage('del_cat', '${cat}')">🗑 Cat</button>
-                        </div>
-                        <div class="man-row">
-                            <input type="text" id="newUrl_${cat}" class="man-input" placeholder="http://...">
-                            <button class="btn-small btn-add" onclick="apiManage('add_url', '${cat}', 'newUrl_${cat}')">+</button>
-                        </div>
-                        <div class="feed-list">`;
-                    
+            function populateManagerSelect() {
+                const sel = document.getElementById('managerCatSelect');
+                sel.innerHTML = '<option value="" disabled selected>-- Choisir --</option>';
+                Object.keys(currentManagerData).forEach(cat => {
+                    const opt = document.createElement('option');
+                    opt.value = cat;
+                    opt.textContent = cat;
+                    sel.appendChild(opt);
+                });
+                document.getElementById('feedEditorArea').style.display = 'none';
+            }
+
+            function renderFeedList() {
+                const cat = document.getElementById('managerCatSelect').value;
+                if (!cat) return;
+
+                const area = document.getElementById('feedEditorArea');
+                const listContainer = document.getElementById('feedListContainer');
+                area.style.display = 'block';
+                listContainer.innerHTML = '';
+
+                const urls = currentManagerData[cat] || [];
+                
+                if (urls.length === 0) {
+                    listContainer.innerHTML = '<div class="empty-msg">Aucun flux dans cette catégorie.</div>';
+                } else {
                     urls.forEach(url => {
-                        html += `
-                        <div class="man-row">
-                            <span style="overflow:hidden; text-overflow:ellipsis;">${url.replace('https://','').replace('http://','')}</span>
+                        const div = document.createElement('div');
+                        div.className = 'man-row';
+                        div.innerHTML = `
+                            <span style="overflow:hidden; text-overflow:ellipsis; font-size:0.9em;">${url.replace('https://','')}</span>
                             <button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${url}')">🗑</button>
-                        </div>`;
+                        `;
+                        listContainer.appendChild(div);
                     });
-                    html += `</div></div>`;
                 }
-                div.innerHTML = html;
+            }
+
+            function addUrlToCurrent() {
+                const cat = document.getElementById('managerCatSelect').value;
+                if(!cat) return alert("Sélectionnez d'abord une catégorie");
+                apiManage('add_url', cat, 'newUrlInput');
+            }
+
+            function deleteCurrentCategory() {
+                const cat = document.getElementById('managerCatSelect').value;
+                if(!cat) return;
+                apiManage('del_cat', cat);
             }
 
             async function apiManage(action, category=null, inputId=null, url=null) {
@@ -429,16 +440,24 @@ def home():
                     body: JSON.stringify(payload)
                 });
                 const json = await res.json();
+                
                 if(json.success) {
-                    if(action.includes('cat')) location.reload(); 
-                    else loadManagerData();
-                    if(inputId) document.getElementById(inputId).value = '';
-                    if(action === 'add_cat') document.getElementById('newCatInput').value = '';
+                    if(action === 'add_cat' || action === 'del_cat') {
+                        location.reload(); // Recharger pour mettre à jour le select principal
+                    } else {
+                        // Pour les URLs, on recharge juste les données en douceur
+                        await loadManagerData();
+                        // On remet la sélection sur la catégorie en cours
+                        document.getElementById('managerCatSelect').value = category;
+                        renderFeedList();
+                        if(inputId) document.getElementById(inputId).value = '';
+                    }
                 } else {
                     alert('Erreur: ' + json.msg);
                 }
             }
 
+            // --- MAIN APP LOGIC ---
             function resetView(){
                 currentData = null; document.getElementById('saveBtn').style.display='none';
                 document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
@@ -531,7 +550,6 @@ def home():
 # ==========================================
 # API ENDPOINTS
 # ==========================================
-
 @app.route('/get-random')
 @requires_auth
 def get_random():
@@ -584,13 +602,11 @@ def manage_feeds():
     
     try:
         if action == 'add_cat':
-            # FIX: On sauvegarde vraiment la catégorie
             if cat and not Category.query.filter_by(name=cat).first():
                 db.session.add(Category(name=cat))
                 db.session.commit()
         
         elif action == 'del_cat':
-            # Suppression en cascade manuelle (pour être sûr)
             Category.query.filter_by(name=cat).delete()
             Feed.query.filter_by(category_name=cat).delete()
             db.session.commit()
@@ -599,11 +615,9 @@ def manage_feeds():
             is_valid, error_msg = is_safe_url(url)
             if not is_valid: return jsonify({"success": False, "msg": error_msg})
             
-            # On s'assure que la catégorie existe
             if not Category.query.filter_by(name=cat).first():
                  db.session.add(Category(name=cat))
             
-            # On ajoute le flux
             if not Feed.query.filter_by(category_name=cat, url=url.strip()).first():
                 db.session.add(Feed(category_name=cat, url=url.strip()))
                 db.session.commit()
@@ -655,5 +669,3 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
-
