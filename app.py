@@ -55,7 +55,7 @@ class SavedArticle(db.Model):
     title = db.Column(db.String(500))
 
 with app.app_context():
-    # db.drop_all() # Décommentez une fois si besoin de reset
+    # db.drop_all() 
     db.create_all()
     if not Category.query.first():
         default_cat = "Actualités"
@@ -177,7 +177,6 @@ def home():
             .btn-read { background:var(--col-success); }
             .btn-test { background:none; border:none; color:var(--text-sub); margin-top:20px; cursor:pointer; text-decoration:underline; font-size:0.8em; }
 
-            /* Styles spécifiques au nouveau Manager */
             #managerSection { display:none; border:1px solid var(--select-border); }
             .man-title { font-weight:bold; margin-bottom:10px; border-bottom:1px solid var(--select-border); padding-bottom:5px; }
             .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; gap: 5px;}
@@ -228,26 +227,26 @@ def home():
                 <div class="man-title" data-i18n="man_title">Gestion des flux</div>
                 
                 <div class="man-row">
-                    <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie...">
+                    <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie..." data-i18n="ph_cat">
                     <button class="btn-small btn-add" onclick="apiManage('add_cat')" data-i18n="btn_add">Ajouter</button>
                 </div>
 
                 <hr style="width:100%; border:0; border-top:1px solid var(--select-border); margin:10px 0;">
 
                 <div class="man-row">
-                    <label style="font-weight:bold; font-size:0.9em;">Gérer :</label>
+                    <label style="font-weight:bold; font-size:0.9em;" data-i18n="lbl_manage">Gérer :</label>
                     <select id="managerCatSelect" class="man-input" onchange="renderFeedList()">
-                        </select>
+                    </select>
                 </div>
                 
                 <div class="man-row" style="justify-content: flex-end;">
-                     <button class="btn-small btn-del" onclick="deleteCurrentCategory()">Supprimer cette catégorie</button>
+                     <button class="btn-small btn-del" onclick="deleteCurrentCategory()" data-i18n="btn_del_cat">Supprimer cette catégorie</button>
                 </div>
 
                 <div id="feedEditorArea" class="feed-list" style="display:none;">
                     <div class="man-row">
-                        <input type="text" id="newUrlInput" class="man-input" placeholder="http://...">
-                        <button class="btn-small btn-add" onclick="addUrlToCurrent()">Ajouter URL</button>
+                        <input type="text" id="newUrlInput" class="man-input" placeholder="http://..." data-i18n="ph_url">
+                        <button class="btn-small btn-add" onclick="addUrlToCurrent()" data-i18n="btn_add_url">Ajouter URL</button>
                     </div>
                     <div id="feedListContainer"></div>
                 </div>
@@ -282,36 +281,47 @@ def home():
 
         <script>
             let currentData = null;
-            let currentManagerData = {}; // Stocke les données pour le manager
+            let currentManagerData = {}; 
 
             const translations = {
                 fr: {
                     app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale",
                     intro_text:"Cliquez pour découvrir.", btn_surprise:"Surprends-moi", btn_save:"💾 Sauvegarder", btn_read:"Lire",
                     btn_test:"Tester / Nettoyer flux", lbl_saved:"Sauvegardes", man_title:"Gestion des flux", btn_add:"Ajouter",
-                    msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?"
+                    msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?",
+                    ph_cat:"Nouvelle catégorie...", lbl_manage:"Gérer :", btn_del_cat:"Supprimer cette catégorie",
+                    ph_url:"http://...", btn_add_url:"Ajouter URL", opt_choose:"-- Choisir --", msg_no_feeds:"Aucun flux ici.",
+                    msg_sel_cat:"Sélectionnez une catégorie", msg_bad_url:"L'URL doit commencer par http:// ou https://"
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal",
                     intro_text:"Click to discover.", btn_surprise:"Surprise me", btn_save:"💾 Save", btn_read:"Read",
                     btn_test:"Test / Clean Feeds", lbl_saved:"Saved", man_title:"Feed Manager", btn_add:"Add",
-                    msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?"
+                    msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?",
+                    ph_cat:"New category...", lbl_manage:"Manage:", btn_del_cat:"Delete this category",
+                    ph_url:"http://...", btn_add_url:"Add URL", opt_choose:"-- Choose --", msg_no_feeds:"No feeds here.",
+                    msg_sel_cat:"Select a category", msg_bad_url:"URL must start with http:// or https://"
                 },
                 es: {
                     app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal",
                     intro_text:"Descubrir.", btn_surprise:"Sorpréndeme", btn_save:"💾 Guardar", btn_read:"Leer",
                     btn_test:"Probar / Limpiar", lbl_saved:"Guardados", man_title:"Gestión de feeds", btn_add:"Añadir",
-                    msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR", msg_confirm: "¿Confirmar la eliminación?"
+                    msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR", msg_confirm: "¿Confirmar la eliminación?",
+                    ph_cat:"Nueva categoría...", lbl_manage:"Gestionar:", btn_del_cat:"Eliminar esta categoría",
+                    ph_url:"http://...", btn_add_url:"Añadir URL", opt_choose:"-- Elegir --", msg_no_feeds:"No hay feeds.",
+                    msg_sel_cat:"Seleccione una categoría", msg_bad_url:"La URL debe comenzar con http:// o https://"
                 },
                 jp: {
                     app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常",
                     intro_text:"発見する。", btn_surprise:"驚かせて", btn_save:"💾 保存", btn_read:"読む",
                     btn_test:"テスト / クリーン", lbl_saved:"保存リスト", man_title:"フィード管理", btn_add:"追加",
-                    msg_loading:"検索中...", status_ok:"有効", status_err:"エラー", msg_confirm: "本当に削除しますか？"
+                    msg_loading:"検索中...", status_ok:"有効", status_err:"エラー", msg_confirm: "本当に削除しますか？",
+                    ph_cat:"新しいカテゴリ...", lbl_manage:"管理:", btn_del_cat:"このカテゴリを削除",
+                    ph_url:"http://...", btn_add_url:"URLを追加", opt_choose:"-- 選択 --", msg_no_feeds:"フィードなし",
+                    msg_sel_cat:"カテゴリを選択", msg_bad_url:"URLはhttp://またはhttps://で"
                 }
             };
 
-            // Init simple settings
             const savedP = localStorage.getItem('colorProfile')||'normal';
             const savedF = localStorage.getItem('fontScale')||'1';
             const savedL = localStorage.getItem('appLang')||'fr';
@@ -321,9 +331,7 @@ def home():
             applyLanguage(savedL); document.getElementById('langSelect').value=savedL;
             
             loadSavedLinks();
-            // On ne charge les données manager que si on ouvre le panneau
 
-            // --- UI Functions ---
             function toggleTheme(){ 
                 document.body.classList.toggle('dark-mode'); 
                 localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light');
@@ -337,19 +345,33 @@ def home():
             }
             function changeFontSize(){ const s = document.getElementById('fontSlider').value; applyFontSize(s); localStorage.setItem('fontScale', s); }
             function applyFontSize(s){ document.documentElement.style.setProperty('--font-scale', s); }
+            
             function changeLanguage(){ 
                 const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); resetView(); 
+                // Re-render pour mettre à jour les textes dynamiques
+                if(document.getElementById('managerSection').style.display === 'block') {
+                    populateManagerSelect();
+                }
             }
+            
             function applyLanguage(l){
                 const t = translations[l];
                 document.querySelectorAll('[data-i18n]').forEach(el => {
-                    if(t[el.getAttribute('data-i18n')]) el.textContent = t[el.getAttribute('data-i18n')];
+                    const key = el.getAttribute('data-i18n');
+                    if(t[key]) {
+                        // Gère les placeholders pour les inputs, sinon textContent
+                        if(el.tagName === 'INPUT' && el.hasAttribute('placeholder')) {
+                            el.placeholder = t[key];
+                        } else {
+                            el.textContent = t[key];
+                        }
+                    }
                 });
                 document.getElementById('langSelect').value = l;
             }
             function getTrans(k){ return translations[document.getElementById('langSelect').value][k] || k; }
 
-            // --- MANAGER LOGIC (Refaite pour ergonomie) ---
+            // --- MANAGER LOGIC ---
             function toggleManager(){
                 const m = document.getElementById('managerSection');
                 m.style.display = m.style.display === 'block' ? 'none' : 'block';
@@ -364,14 +386,20 @@ def home():
 
             function populateManagerSelect() {
                 const sel = document.getElementById('managerCatSelect');
-                sel.innerHTML = '<option value="" disabled selected>-- Choisir --</option>';
+                const prevVal = sel.value;
+                sel.innerHTML = `<option value="" disabled selected>${getTrans('opt_choose')}</option>`;
                 Object.keys(currentManagerData).forEach(cat => {
                     const opt = document.createElement('option');
                     opt.value = cat;
                     opt.textContent = cat;
                     sel.appendChild(opt);
                 });
-                document.getElementById('feedEditorArea').style.display = 'none';
+                if(prevVal && currentManagerData[prevVal]) {
+                    sel.value = prevVal;
+                    renderFeedList();
+                } else {
+                    document.getElementById('feedEditorArea').style.display = 'none';
+                }
             }
 
             function renderFeedList() {
@@ -386,7 +414,7 @@ def home():
                 const urls = currentManagerData[cat] || [];
                 
                 if (urls.length === 0) {
-                    listContainer.innerHTML = '<div class="empty-msg">Aucun flux dans cette catégorie.</div>';
+                    listContainer.innerHTML = `<div class="empty-msg">${getTrans('msg_no_feeds')}</div>`;
                 } else {
                     urls.forEach(url => {
                         const div = document.createElement('div');
@@ -402,7 +430,7 @@ def home():
 
             function addUrlToCurrent() {
                 const cat = document.getElementById('managerCatSelect').value;
-                if(!cat) return alert("Sélectionnez d'abord une catégorie");
+                if(!cat) return alert(getTrans('msg_sel_cat'));
                 apiManage('add_url', cat, 'newUrlInput');
             }
 
@@ -428,7 +456,7 @@ def home():
 
                 if ((action === 'add_url') && payload.url) {
                     if (!payload.url.startsWith('http')) {
-                        alert("L'URL doit commencer par http:// ou https://");
+                        alert(getTrans('msg_bad_url'));
                         return;
                     }
                 }
@@ -443,11 +471,9 @@ def home():
                 
                 if(json.success) {
                     if(action === 'add_cat' || action === 'del_cat') {
-                        location.reload(); // Recharger pour mettre à jour le select principal
+                        location.reload(); 
                     } else {
-                        // Pour les URLs, on recharge juste les données en douceur
                         await loadManagerData();
-                        // On remet la sélection sur la catégorie en cours
                         document.getElementById('managerCatSelect').value = category;
                         renderFeedList();
                         if(inputId) document.getElementById(inputId).value = '';
@@ -457,7 +483,6 @@ def home():
                 }
             }
 
-            // --- MAIN APP LOGIC ---
             function resetView(){
                 currentData = null; document.getElementById('saveBtn').style.display='none';
                 document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
