@@ -35,7 +35,6 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# On augmente la taille max d'upload à 5MB pour être tranquille
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 
 
 db = SQLAlchemy(app)
@@ -160,6 +159,7 @@ def home():
             }
             .settings-container *, #managerSection * { font-size: 1em; }
             
+            /* On s'assure que les boutons et inputs respectent l'échelle globale par défaut */
             button, select, input { font-size: 1em; }
 
             .card { 
@@ -175,8 +175,23 @@ def home():
             .a11y-select { padding:4px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); max-width:120px;}
             
             .cat-row { display:flex; gap:10px; align-items:center; margin-bottom:15px; }
-            .cat-select { flex-grow:1; padding:10px; border-radius:8px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); }
-            .btn-manage { background:none; border:none; font-size:1.5em; cursor:pointer; color:var(--col-manage); padding:0 5px;}
+            
+            /* CORRECTION: On force la taille de police calculée sur le select */
+            .cat-select { 
+                flex-grow:1; 
+                padding:10px; 
+                border-radius:8px; 
+                border:1px solid var(--select-border); 
+                background:var(--select-bg); 
+                color:var(--text-main); 
+                font-size: calc(16px * var(--font-scale)); /* Force le redimensionnement */
+            }
+            
+            .btn-manage { 
+                background:none; border:none; cursor:pointer; 
+                color:var(--col-manage); padding:0 5px;
+                font-size: calc(1.5em * var(--font-scale)); /* L'icône grossit aussi */
+            }
             
             .action-buttons { display:flex; flex-direction:column; gap:10px; align-items:center; margin-top:20px; }
             .btn { background:var(--col-primary); color:#fff; padding:12px 25px; border-radius:50px; border:none; font-weight:600; width:80%; cursor:pointer; }
