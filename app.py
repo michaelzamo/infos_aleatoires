@@ -35,7 +35,8 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 
+# On augmente la taille max d'upload à 5MB pour être tranquille
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 
 
 db = SQLAlchemy(app)
 
@@ -687,7 +688,7 @@ def test_sources():
 def get_all_feeds():
     return jsonify(get_full_config())
 
-# --- ENDPOINTS IMPORT/EXPORT ---
+# --- ENDPOINTS IMPORT/EXPORT MIS A JOUR ---
 
 @app.route('/api/feeds/export')
 @requires_auth
@@ -742,6 +743,7 @@ def import_feeds():
             saved_part = []
 
         # 1. Import des Flux
+        print(f"DEBUG: Début import Flux")
         for cat_name, urls in feeds_part.items():
             if not isinstance(urls, list): continue
             
@@ -755,31 +757,46 @@ def import_feeds():
             for url in urls:
                 is_valid, _ = is_safe_url(url)
                 if is_valid:
-                    if not Feed.query.filter_by(category_name=safe_cat_name, url=url.strip()).first():
-                        db.session.add(Feed(category_name=safe_cat_name, url=url.strip()))
+                    # Tronquer l'URL à 500 chars pour la BDD
+                    trunc_url = url.strip()[:500]
+                    if not Feed.query.filter_by(category_name=safe_cat_name, url=trunc_url).first():
+                        db.session.add(Feed(category_name=safe_cat_name, url=trunc_url))
                         count_url += 1
         
-        # 2. Import des Articles Sauvegardés
+        # 2. Import des Articles Sauvegardés avec sécurité renforcée
+        print(f"DEBUG: Début import Articles Sauvegardés. Nb items: {len(saved_part)}")
         for item in saved_part:
-            url = item.get('url')
-            title = item.get('title', 'Sans titre')
-            cat = item.get('category', 'Général')
-            
-            is_valid, _ = is_safe_url(url)
-            if is_valid:
-                if not SavedArticle.query.filter_by(url=url).first():
-                    db.session.add(SavedArticle(url=url, title=title, category=cat))
-                    count_saved += 1
+            try:
+                url = item.get('url')
+                title = item.get('title', 'Sans titre') or 'Sans titre'
+                cat = item.get('category', 'Général') or 'Général'
+                
+                is_valid, _ = is_safe_url(url)
+                if is_valid:
+                    # Tronquer pour respecter les limites VARCHAR(500)
+                    trunc_url = url.strip()[:500]
+                    trunc_title = title.strip()[:500]
+                    trunc_cat = cat.strip()[:100]
+
+                    if not SavedArticle.query.filter_by(url=trunc_url).first():
+                        db.session.add(SavedArticle(url=trunc_url, title=trunc_title, category=trunc_cat))
+                        count_saved += 1
+            except Exception as e:
+                print(f"DEBUG: Erreur sur un article: {e}")
+                continue # On ignore cet article foireux et on continue
 
         db.session.commit()
+        print("DEBUG: Import terminé avec succès.")
         return jsonify({
             "success": True, 
             "msg": f"Succès ! Flux: {count_url}, Catégories: {count_cat}, Articles: {count_saved}."
         })
         
     except json.JSONDecodeError:
+        print("DEBUG: JSON Decode Error")
         return jsonify({"success": False, "msg": "Fichier JSON corrompu"})
     except Exception as e:
+        print(f"DEBUG: Exception générale import: {e}")
         return jsonify({"success": False, "msg": str(e)})
 
 
