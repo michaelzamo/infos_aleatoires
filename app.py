@@ -5,7 +5,7 @@ import random
 import os
 import html
 import json
-import re # Pour le nettoyage des noms de catégories
+import re
 from functools import wraps
 from dotenv import load_dotenv
 
@@ -35,7 +35,6 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Limite la taille de l'upload à 1MB pour éviter le déni de service (DoS)
 app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024 
 
 db = SQLAlchemy(app)
@@ -96,11 +95,9 @@ def is_safe_url(url):
     return True, ""
 
 def sanitize_category_name(name):
-    """Nettoie le nom de catégorie pour éviter l'injection HTML/Script"""
     if not isinstance(name, str): return "Inconnu"
-    # On garde lettres, chiffres, espaces, tirets et underscores. On retire les < > etc.
     clean = re.sub(r'[^\w\s\-\.]', '', name)
-    return clean.strip()[:100] # Limite à 100 caractères
+    return clean.strip()[:100]
 
 def get_full_config():
     cats = Category.query.order_by(Category.name).all()
@@ -184,8 +181,7 @@ def home():
             .btn { background:var(--col-primary); color:#fff; padding:12px 25px; border-radius:50px; border:none; font-weight:600; width:80%; cursor:pointer; }
             .btn-save { background:var(--col-save); display:none; }
             .btn-read { background:var(--col-success); }
-            .btn-test { background:none; border:none; color:var(--text-sub); margin-top:20px; cursor:pointer; text-decoration:underline; font-size:0.8em; }
-
+            
             #managerSection { display:none; border:1px solid var(--select-border); }
             .man-title { font-weight:bold; margin-bottom:10px; border-bottom:1px solid var(--select-border); padding-bottom:5px; }
             .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; gap: 5px;}
@@ -194,6 +190,8 @@ def home():
             .btn-add { background:var(--col-success); }
             .btn-del { background:var(--col-error); }
             .btn-imp { background:var(--col-manage); }
+            .btn-test-cat { background:var(--col-primary); color:white; } /* Nouveau bouton */
+            
             .feed-list { margin-top:10px; border-top:1px solid var(--select-border); padding-top:10px; }
             .empty-msg { font-style: italic; color: var(--text-sub); font-size: 0.9em; margin-bottom: 10px;}
 
@@ -202,6 +200,9 @@ def home():
             .status-ok { color:var(--col-success); font-weight:bold; }
             .status-err { color:var(--col-error); font-weight:bold; }
             .source-tag { background:var(--tag-bg); padding:4px 10px; border-radius:20px; font-size:0.8em; font-weight:bold; color:var(--text-sub); }
+            
+            /* Indicateurs de test */
+            .test-indicator { margin-right: 5px; font-size: 1.2em; }
         </style>
     </head>
     <body>
@@ -260,6 +261,10 @@ def home():
                 </div>
 
                 <div id="feedEditorArea" class="feed-list" style="display:none;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <button class="btn-small btn-test-cat" onclick="testCurrentCategory()" data-i18n="btn_test_cat">🧪 Tester ces flux</button>
+                    </div>
+                    
                     <div class="man-row">
                         <input type="text" id="newUrlInput" class="man-input" placeholder="http://..." data-i18n="ph_url">
                         <button class="btn-small btn-add" onclick="addUrlToCurrent()" data-i18n="btn_add_url">Ajouter URL</button>
@@ -290,9 +295,6 @@ def home():
                 <div style="font-weight:bold; margin-bottom:5px;" data-i18n="lbl_saved">Sauvegardes</div>
                 <ul id="savedList" style="list-style:none; padding:0;"></ul>
             </div>
-
-            <button class="btn-test" onclick="runDiagnostics()" data-i18n="btn_test">Tester les flux</button>
-            <div id="test-results" style="display:none; margin-top:10px;"></div>
         </div>
 
         <script>
@@ -303,42 +305,46 @@ def home():
                 fr: {
                     app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale",
                     intro_text:"Cliquez pour découvrir.", btn_surprise:"Surprends-moi", btn_save:"💾 Sauvegarder", btn_read:"Lire",
-                    btn_test:"Tester / Nettoyer flux", lbl_saved:"Sauvegardes", man_title:"Gestion des flux", btn_add:"Ajouter",
+                    lbl_saved:"Sauvegardes", man_title:"Gestion des flux", btn_add:"Ajouter",
                     msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?",
                     ph_cat:"Nouvelle catégorie...", lbl_manage:"Gérer :", btn_del_cat:"Supprimer cette catégorie",
                     ph_url:"http://...", btn_add_url:"Ajouter URL", opt_choose:"-- Choisir --", msg_no_feeds:"Aucun flux ici.",
                     msg_sel_cat:"Sélectionnez une catégorie", msg_bad_url:"L'URL doit commencer par http:// ou https://",
-                    btn_export: "⬇️ Exporter (JSON)", btn_import: "⬆️ Importer", msg_imp_success: "Import terminé avec succès !"
+                    btn_export: "⬇️ Exporter (JSON)", btn_import: "⬆️ Importer", msg_imp_success: "Import terminé avec succès !",
+                    btn_test_cat: "🧪 Tester ces flux", msg_test_load: "Test en cours..."
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal",
                     intro_text:"Click to discover.", btn_surprise:"Surprise me", btn_save:"💾 Save", btn_read:"Read",
-                    btn_test:"Test / Clean Feeds", lbl_saved:"Saved", man_title:"Feed Manager", btn_add:"Add",
+                    lbl_saved:"Saved", man_title:"Feed Manager", btn_add:"Add",
                     msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?",
                     ph_cat:"New category...", lbl_manage:"Manage:", btn_del_cat:"Delete this category",
                     ph_url:"http://...", btn_add_url:"Add URL", opt_choose:"-- Choose --", msg_no_feeds:"No feeds here.",
                     msg_sel_cat:"Select a category", msg_bad_url:"URL must start with http:// or https://",
-                    btn_export: "⬇️ Export (JSON)", btn_import: "⬆️ Import", msg_imp_success: "Import completed successfully!"
+                    btn_export: "⬇️ Export (JSON)", btn_import: "⬆️ Import", msg_imp_success: "Import completed successfully!",
+                    btn_test_cat: "🧪 Test these feeds", msg_test_load: "Testing..."
                 },
                 es: {
                     app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal",
                     intro_text:"Descubrir.", btn_surprise:"Sorpréndeme", btn_save:"💾 Guardar", btn_read:"Leer",
-                    btn_test:"Probar / Limpiar", lbl_saved:"Guardados", man_title:"Gestión de feeds", btn_add:"Añadir",
+                    lbl_saved:"Guardados", man_title:"Gestión de feeds", btn_add:"Añadir",
                     msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR", msg_confirm: "¿Confirmar la eliminación?",
                     ph_cat:"Nueva categoría...", lbl_manage:"Gestionar:", btn_del_cat:"Eliminar esta categoría",
                     ph_url:"http://...", btn_add_url:"Añadir URL", opt_choose:"-- Elegir --", msg_no_feeds:"No hay feeds.",
                     msg_sel_cat:"Seleccione una categoría", msg_bad_url:"La URL debe comenzar con http:// o https://",
-                    btn_export: "⬇️ Exportar (JSON)", btn_import: "⬆️ Importar", msg_imp_success: "¡Importación completada!"
+                    btn_export: "⬇️ Exportar (JSON)", btn_import: "⬆️ Importar", msg_imp_success: "¡Importación completada!",
+                    btn_test_cat: "🧪 Probar feeds", msg_test_load: "Probando..."
                 },
                 jp: {
                     app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常",
                     intro_text:"発見する。", btn_surprise:"驚かせて", btn_save:"💾 保存", btn_read:"読む",
-                    btn_test:"テスト / クリーン", lbl_saved:"保存リスト", man_title:"フィード管理", btn_add:"追加",
+                    lbl_saved:"保存リスト", man_title:"フィード管理", btn_add:"追加",
                     msg_loading:"検索中...", status_ok:"有効", status_err:"エラー", msg_confirm: "本当に削除しますか？",
                     ph_cat:"新しいカテゴリ...", lbl_manage:"管理:", btn_del_cat:"このカテゴリを削除",
                     ph_url:"http://...", btn_add_url:"URLを追加", opt_choose:"-- 選択 --", msg_no_feeds:"フィードなし",
                     msg_sel_cat:"カテゴリを選択", msg_bad_url:"URLはhttp://またはhttps://で",
-                    btn_export: "⬇️ エクスポート", btn_import: "⬆️ インポート", msg_imp_success: "インポート完了！"
+                    btn_export: "⬇️ エクスポート", btn_import: "⬆️ インポート", msg_imp_success: "インポート完了！",
+                    btn_test_cat: "🧪 テスト", msg_test_load: "テスト中..."
                 }
             };
 
@@ -414,13 +420,16 @@ def home():
                 });
                 if(prevVal && currentManagerData[prevVal]) {
                     sel.value = prevVal;
-                    renderFeedList();
+                    // Pas de renderFeedList ici si on veut éviter de perdre l'état, 
+                    // mais pour l'init c'est mieux de laisser vide jusqu'au choix explicite
+                    if(sel.value) renderFeedList();
                 } else {
                     document.getElementById('feedEditorArea').style.display = 'none';
                 }
             }
 
-            function renderFeedList() {
+            // Affiche la liste avec optionnellement des résultats de test
+            function renderFeedList(testResults = null) {
                 const cat = document.getElementById('managerCatSelect').value;
                 if (!cat) return;
 
@@ -437,12 +446,47 @@ def home():
                     urls.forEach(url => {
                         const div = document.createElement('div');
                         div.className = 'man-row';
+                        
+                        let statusIcon = '';
+                        if (testResults) {
+                            // On cherche le résultat pour cette URL
+                            const res = testResults.find(r => r.url === url);
+                            if (res) {
+                                statusIcon = res.valid 
+                                    ? '<span class="test-indicator" title="OK">✅</span>' 
+                                    : '<span class="test-indicator" title="Erreur">❌</span>';
+                            }
+                        }
+
                         div.innerHTML = `
+                            ${statusIcon}
                             <span style="overflow:hidden; text-overflow:ellipsis; font-size:0.9em;">${url.replace('https://','')}</span>
                             <button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${url}')">🗑</button>
                         `;
                         listContainer.appendChild(div);
                     });
+                }
+            }
+
+            // Nouvelle fonction de test ciblée
+            async function testCurrentCategory() {
+                const cat = document.getElementById('managerCatSelect').value;
+                if (!cat) return;
+
+                const btn = document.querySelector('.btn-test-cat');
+                const oldText = btn.textContent;
+                btn.textContent = getTrans('msg_test_load');
+                btn.disabled = true;
+
+                try {
+                    const r = await fetch('/test-sources?category='+encodeURIComponent(cat));
+                    const results = await r.json();
+                    renderFeedList(results); // On re-rend la liste avec les icones
+                } catch(e) {
+                    alert("Erreur test");
+                } finally {
+                    btn.textContent = oldText;
+                    btn.disabled = false;
                 }
             }
 
@@ -458,12 +502,10 @@ def home():
                 apiManage('del_cat', cat);
             }
 
-            // Export Feeds Function
             function exportFeeds() {
                 window.location.href = '/api/feeds/export';
             }
 
-            // Import Feeds Function
             async function importFeeds(input) {
                 if (!input.files || !input.files[0]) return;
                 const file = input.files[0];
@@ -492,7 +534,7 @@ def home():
                 } finally {
                     btn.textContent = oldText;
                     btn.disabled = false;
-                    input.value = ''; // Reset
+                    input.value = ''; 
                 }
             }
 
@@ -602,27 +644,6 @@ def home():
                     loadSavedLinks();
                 }
             }
-
-            async function runDiagnostics(){
-                const cat = document.getElementById('categorySelect').value;
-                const div = document.getElementById('test-results');
-                div.style.display='block'; div.innerHTML = getTrans('msg_loading');
-                
-                const r = await fetch('/test-sources?category='+encodeURIComponent(cat));
-                const d = await r.json();
-                
-                let h = '';
-                d.forEach(i => {
-                    const delBtn = i.valid ? '' : `<button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${i.url}')" title="Supprimer ce flux HS">🗑</button>`;
-                    const status = i.valid ? `<span class="status-ok">${getTrans('status_ok')}</span>` : `<span class="status-err">${getTrans('status_err')}</span>`;
-                    
-                    h += `<div class="list-item">
-                        <span class="list-label" title="${i.url}">${i.url.replace('https://','')}</span>
-                        <div style="display:flex; gap:5px; align-items:center;">${status} ${delBtn}</div>
-                    </div>`;
-                });
-                div.innerHTML = h || getTrans('msg_empty');
-            }
         </script>
     </body>
     </html>
@@ -708,12 +729,10 @@ def import_feeds():
             safe_cat_name = sanitize_category_name(cat_name)
             if not safe_cat_name: continue
             
-            # 1. Créer la catégorie si elle n'existe pas
             if not Category.query.filter_by(name=safe_cat_name).first():
                 db.session.add(Category(name=safe_cat_name))
                 count_cat += 1
                 
-            # 2. Ajouter les URLs
             for url in urls:
                 is_valid, _ = is_safe_url(url)
                 if is_valid:
