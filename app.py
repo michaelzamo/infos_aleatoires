@@ -1,9 +1,11 @@
-from flask import Flask, jsonify, render_template_string, request, Response
+from flask import Flask, jsonify, render_template_string, request, Response, make_response
 from flask_sqlalchemy import SQLAlchemy
 import feedparser
 import random
 import os
 import html
+import json
+import re # Pour le nettoyage des noms de catégories
 from functools import wraps
 from dotenv import load_dotenv
 
@@ -33,6 +35,8 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Limite la taille de l'upload à 1MB pour éviter le déni de service (DoS)
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024 
 
 db = SQLAlchemy(app)
 
@@ -55,7 +59,6 @@ class SavedArticle(db.Model):
     title = db.Column(db.String(500))
 
 with app.app_context():
-    # db.drop_all() 
     db.create_all()
     if not Category.query.first():
         default_cat = "Actualités"
@@ -91,6 +94,13 @@ def is_safe_url(url):
         if f"//{host}" in url_lower or f"@{host}" in url_lower or url_lower.startswith(host):
              return False, "Adresse interdite"
     return True, ""
+
+def sanitize_category_name(name):
+    """Nettoie le nom de catégorie pour éviter l'injection HTML/Script"""
+    if not isinstance(name, str): return "Inconnu"
+    # On garde lettres, chiffres, espaces, tirets et underscores. On retire les < > etc.
+    clean = re.sub(r'[^\w\s\-\.]', '', name)
+    return clean.strip()[:100] # Limite à 100 caractères
 
 def get_full_config():
     cats = Category.query.order_by(Category.name).all()
@@ -145,7 +155,6 @@ def home():
                 font-size: calc(16px * var(--font-scale));
             }
             
-            /* Styles Fixes pour Outils */
             .settings-container, #managerSection {
                 display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
                 background:var(--tag-bg); padding:10px; border-radius:8px;
@@ -184,6 +193,7 @@ def home():
             .btn-small { padding:5px 10px; border-radius:4px; border:none; cursor:pointer; color:white; font-size:0.8em; white-space: nowrap;}
             .btn-add { background:var(--col-success); }
             .btn-del { background:var(--col-error); }
+            .btn-imp { background:var(--col-manage); }
             .feed-list { margin-top:10px; border-top:1px solid var(--select-border); padding-top:10px; }
             .empty-msg { font-style: italic; color: var(--text-sub); font-size: 0.9em; margin-bottom: 10px;}
 
@@ -226,6 +236,12 @@ def home():
             <div id="managerSection">
                 <div class="man-title" data-i18n="man_title">Gestion des flux</div>
                 
+                <div class="man-row" style="background:var(--bg-body); padding:5px; border-radius:4px; margin-bottom:10px;">
+                    <button class="btn-small btn-imp" onclick="exportFeeds()" data-i18n="btn_export">⬇️ Exporter (JSON)</button>
+                    <button class="btn-small btn-imp" onclick="document.getElementById('importFile').click()" data-i18n="btn_import">⬆️ Importer</button>
+                    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importFeeds(this)">
+                </div>
+
                 <div class="man-row">
                     <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie..." data-i18n="ph_cat">
                     <button class="btn-small btn-add" onclick="apiManage('add_cat')" data-i18n="btn_add">Ajouter</button>
@@ -291,7 +307,8 @@ def home():
                     msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?",
                     ph_cat:"Nouvelle catégorie...", lbl_manage:"Gérer :", btn_del_cat:"Supprimer cette catégorie",
                     ph_url:"http://...", btn_add_url:"Ajouter URL", opt_choose:"-- Choisir --", msg_no_feeds:"Aucun flux ici.",
-                    msg_sel_cat:"Sélectionnez une catégorie", msg_bad_url:"L'URL doit commencer par http:// ou https://"
+                    msg_sel_cat:"Sélectionnez une catégorie", msg_bad_url:"L'URL doit commencer par http:// ou https://",
+                    btn_export: "⬇️ Exporter (JSON)", btn_import: "⬆️ Importer", msg_imp_success: "Import terminé avec succès !"
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal",
@@ -300,7 +317,8 @@ def home():
                     msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?",
                     ph_cat:"New category...", lbl_manage:"Manage:", btn_del_cat:"Delete this category",
                     ph_url:"http://...", btn_add_url:"Add URL", opt_choose:"-- Choose --", msg_no_feeds:"No feeds here.",
-                    msg_sel_cat:"Select a category", msg_bad_url:"URL must start with http:// or https://"
+                    msg_sel_cat:"Select a category", msg_bad_url:"URL must start with http:// or https://",
+                    btn_export: "⬇️ Export (JSON)", btn_import: "⬆️ Import", msg_imp_success: "Import completed successfully!"
                 },
                 es: {
                     app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal",
@@ -309,7 +327,8 @@ def home():
                     msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR", msg_confirm: "¿Confirmar la eliminación?",
                     ph_cat:"Nueva categoría...", lbl_manage:"Gestionar:", btn_del_cat:"Eliminar esta categoría",
                     ph_url:"http://...", btn_add_url:"Añadir URL", opt_choose:"-- Elegir --", msg_no_feeds:"No hay feeds.",
-                    msg_sel_cat:"Seleccione una categoría", msg_bad_url:"La URL debe comenzar con http:// o https://"
+                    msg_sel_cat:"Seleccione una categoría", msg_bad_url:"La URL debe comenzar con http:// o https://",
+                    btn_export: "⬇️ Exportar (JSON)", btn_import: "⬆️ Importar", msg_imp_success: "¡Importación completada!"
                 },
                 jp: {
                     app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常",
@@ -318,7 +337,8 @@ def home():
                     msg_loading:"検索中...", status_ok:"有効", status_err:"エラー", msg_confirm: "本当に削除しますか？",
                     ph_cat:"新しいカテゴリ...", lbl_manage:"管理:", btn_del_cat:"このカテゴリを削除",
                     ph_url:"http://...", btn_add_url:"URLを追加", opt_choose:"-- 選択 --", msg_no_feeds:"フィードなし",
-                    msg_sel_cat:"カテゴリを選択", msg_bad_url:"URLはhttp://またはhttps://で"
+                    msg_sel_cat:"カテゴリを選択", msg_bad_url:"URLはhttp://またはhttps://で",
+                    btn_export: "⬇️ エクスポート", btn_import: "⬆️ インポート", msg_imp_success: "インポート完了！"
                 }
             };
 
@@ -348,7 +368,6 @@ def home():
             
             function changeLanguage(){ 
                 const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); resetView(); 
-                // Re-render pour mettre à jour les textes dynamiques
                 if(document.getElementById('managerSection').style.display === 'block') {
                     populateManagerSelect();
                 }
@@ -359,7 +378,6 @@ def home():
                 document.querySelectorAll('[data-i18n]').forEach(el => {
                     const key = el.getAttribute('data-i18n');
                     if(t[key]) {
-                        // Gère les placeholders pour les inputs, sinon textContent
                         if(el.tagName === 'INPUT' && el.hasAttribute('placeholder')) {
                             el.placeholder = t[key];
                         } else {
@@ -438,6 +456,44 @@ def home():
                 const cat = document.getElementById('managerCatSelect').value;
                 if(!cat) return;
                 apiManage('del_cat', cat);
+            }
+
+            // Export Feeds Function
+            function exportFeeds() {
+                window.location.href = '/api/feeds/export';
+            }
+
+            // Import Feeds Function
+            async function importFeeds(input) {
+                if (!input.files || !input.files[0]) return;
+                const file = input.files[0];
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const btn = document.querySelector('.btn-imp'); 
+                const oldText = btn.textContent;
+                btn.textContent = "⏳ ...";
+                btn.disabled = true;
+
+                try {
+                    const res = await fetch('/api/feeds/import', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const json = await res.json();
+                    if(json.success) {
+                        alert(getTrans('msg_imp_success'));
+                        location.reload();
+                    } else {
+                        alert('Erreur: ' + (json.msg || 'Format invalide'));
+                    }
+                } catch(e) {
+                    alert('Erreur upload: ' + e);
+                } finally {
+                    btn.textContent = oldText;
+                    btn.disabled = false;
+                    input.value = ''; // Reset
+                }
             }
 
             async function apiManage(action, category=null, inputId=null, url=null) {
@@ -616,6 +672,63 @@ def test_sources():
 @requires_auth
 def get_all_feeds():
     return jsonify(get_full_config())
+
+# --- NOUVEAUX ENDPOINTS IMPORT/EXPORT ---
+
+@app.route('/api/feeds/export')
+@requires_auth
+def export_feeds():
+    data = get_full_config()
+    response = make_response(json.dumps(data, indent=4, ensure_ascii=False))
+    response.headers['Content-Disposition'] = 'attachment; filename=feeds.json'
+    response.headers['Content-Type'] = 'application/json'
+    return response
+
+@app.route('/api/feeds/import', methods=['POST'])
+@requires_auth
+def import_feeds():
+    if 'file' not in request.files:
+        return jsonify({"success": False, "msg": "Aucun fichier"})
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "msg": "Nom de fichier vide"})
+        
+    try:
+        data = json.load(file)
+        if not isinstance(data, dict):
+            return jsonify({"success": False, "msg": "Format JSON invalide (doit être un objet)"})
+            
+        count_cat = 0
+        count_url = 0
+        
+        for cat_name, urls in data.items():
+            if not isinstance(urls, list): continue
+            
+            safe_cat_name = sanitize_category_name(cat_name)
+            if not safe_cat_name: continue
+            
+            # 1. Créer la catégorie si elle n'existe pas
+            if not Category.query.filter_by(name=safe_cat_name).first():
+                db.session.add(Category(name=safe_cat_name))
+                count_cat += 1
+                
+            # 2. Ajouter les URLs
+            for url in urls:
+                is_valid, _ = is_safe_url(url)
+                if is_valid:
+                    if not Feed.query.filter_by(category_name=safe_cat_name, url=url.strip()).first():
+                        db.session.add(Feed(category_name=safe_cat_name, url=url.strip()))
+                        count_url += 1
+                        
+        db.session.commit()
+        return jsonify({"success": True, "msg": f"Importé: {count_cat} catégories, {count_url} flux."})
+        
+    except json.JSONDecodeError:
+        return jsonify({"success": False, "msg": "Fichier JSON corrompu"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
 
 @app.route('/api/feeds/manage', methods=['POST'])
 @requires_auth
