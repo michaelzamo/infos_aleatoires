@@ -35,7 +35,7 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024 
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 # Augmenté à 2MB pour inclure les articles
 
 db = SQLAlchemy(app)
 
@@ -190,7 +190,7 @@ def home():
             .btn-add { background:var(--col-success); }
             .btn-del { background:var(--col-error); }
             .btn-imp { background:var(--col-manage); }
-            .btn-test-cat { background:var(--col-primary); color:white; } /* Nouveau bouton */
+            .btn-test-cat { background:var(--col-primary); color:white; }
             
             .feed-list { margin-top:10px; border-top:1px solid var(--select-border); padding-top:10px; }
             .empty-msg { font-style: italic; color: var(--text-sub); font-size: 0.9em; margin-bottom: 10px;}
@@ -200,8 +200,6 @@ def home():
             .status-ok { color:var(--col-success); font-weight:bold; }
             .status-err { color:var(--col-error); font-weight:bold; }
             .source-tag { background:var(--tag-bg); padding:4px 10px; border-radius:20px; font-size:0.8em; font-weight:bold; color:var(--text-sub); }
-            
-            /* Indicateurs de test */
             .test-indicator { margin-right: 5px; font-size: 1.2em; }
         </style>
     </head>
@@ -238,8 +236,8 @@ def home():
                 <div class="man-title" data-i18n="man_title">Gestion des flux</div>
                 
                 <div class="man-row" style="background:var(--bg-body); padding:5px; border-radius:4px; margin-bottom:10px;">
-                    <button class="btn-small btn-imp" onclick="exportFeeds()" data-i18n="btn_export">⬇️ Exporter (JSON)</button>
-                    <button class="btn-small btn-imp" onclick="document.getElementById('importFile').click()" data-i18n="btn_import">⬆️ Importer</button>
+                    <button class="btn-small btn-imp" onclick="exportFeeds()" data-i18n="btn_export">⬇️ Export Full</button>
+                    <button class="btn-small btn-imp" onclick="document.getElementById('importFile').click()" data-i18n="btn_import">⬆️ Import</button>
                     <input type="file" id="importFile" style="display:none" accept=".json" onchange="importFeeds(this)">
                 </div>
 
@@ -310,7 +308,7 @@ def home():
                     ph_cat:"Nouvelle catégorie...", lbl_manage:"Gérer :", btn_del_cat:"Supprimer cette catégorie",
                     ph_url:"http://...", btn_add_url:"Ajouter URL", opt_choose:"-- Choisir --", msg_no_feeds:"Aucun flux ici.",
                     msg_sel_cat:"Sélectionnez une catégorie", msg_bad_url:"L'URL doit commencer par http:// ou https://",
-                    btn_export: "⬇️ Exporter (JSON)", btn_import: "⬆️ Importer", msg_imp_success: "Import terminé avec succès !",
+                    btn_export: "⬇️ Export (Tout)", btn_import: "⬆️ Import (Tout)", msg_imp_success: "Importation terminée !",
                     btn_test_cat: "🧪 Tester ces flux", msg_test_load: "Test en cours..."
                 },
                 en: {
@@ -321,7 +319,7 @@ def home():
                     ph_cat:"New category...", lbl_manage:"Manage:", btn_del_cat:"Delete this category",
                     ph_url:"http://...", btn_add_url:"Add URL", opt_choose:"-- Choose --", msg_no_feeds:"No feeds here.",
                     msg_sel_cat:"Select a category", msg_bad_url:"URL must start with http:// or https://",
-                    btn_export: "⬇️ Export (JSON)", btn_import: "⬆️ Import", msg_imp_success: "Import completed successfully!",
+                    btn_export: "⬇️ Export (Full)", btn_import: "⬆️ Import (Full)", msg_imp_success: "Import complete!",
                     btn_test_cat: "🧪 Test these feeds", msg_test_load: "Testing..."
                 },
                 es: {
@@ -332,7 +330,7 @@ def home():
                     ph_cat:"Nueva categoría...", lbl_manage:"Gestionar:", btn_del_cat:"Eliminar esta categoría",
                     ph_url:"http://...", btn_add_url:"Añadir URL", opt_choose:"-- Elegir --", msg_no_feeds:"No hay feeds.",
                     msg_sel_cat:"Seleccione una categoría", msg_bad_url:"La URL debe comenzar con http:// o https://",
-                    btn_export: "⬇️ Exportar (JSON)", btn_import: "⬆️ Importar", msg_imp_success: "¡Importación completada!",
+                    btn_export: "⬇️ Exportar (Todo)", btn_import: "⬆️ Importar (Todo)", msg_imp_success: "¡Importación completada!",
                     btn_test_cat: "🧪 Probar feeds", msg_test_load: "Probando..."
                 },
                 jp: {
@@ -343,7 +341,7 @@ def home():
                     ph_cat:"新しいカテゴリ...", lbl_manage:"管理:", btn_del_cat:"このカテゴリを削除",
                     ph_url:"http://...", btn_add_url:"URLを追加", opt_choose:"-- 選択 --", msg_no_feeds:"フィードなし",
                     msg_sel_cat:"カテゴリを選択", msg_bad_url:"URLはhttp://またはhttps://で",
-                    btn_export: "⬇️ エクスポート", btn_import: "⬆️ インポート", msg_imp_success: "インポート完了！",
+                    btn_export: "⬇️ 輸出 (完全)", btn_import: "⬆️ 輸入 (完全)", msg_imp_success: "インポート完了！",
                     btn_test_cat: "🧪 テスト", msg_test_load: "テスト中..."
                 }
             };
@@ -420,15 +418,12 @@ def home():
                 });
                 if(prevVal && currentManagerData[prevVal]) {
                     sel.value = prevVal;
-                    // Pas de renderFeedList ici si on veut éviter de perdre l'état, 
-                    // mais pour l'init c'est mieux de laisser vide jusqu'au choix explicite
                     if(sel.value) renderFeedList();
                 } else {
                     document.getElementById('feedEditorArea').style.display = 'none';
                 }
             }
 
-            // Affiche la liste avec optionnellement des résultats de test
             function renderFeedList(testResults = null) {
                 const cat = document.getElementById('managerCatSelect').value;
                 if (!cat) return;
@@ -449,7 +444,6 @@ def home():
                         
                         let statusIcon = '';
                         if (testResults) {
-                            // On cherche le résultat pour cette URL
                             const res = testResults.find(r => r.url === url);
                             if (res) {
                                 statusIcon = res.valid 
@@ -468,7 +462,6 @@ def home():
                 }
             }
 
-            // Nouvelle fonction de test ciblée
             async function testCurrentCategory() {
                 const cat = document.getElementById('managerCatSelect').value;
                 if (!cat) return;
@@ -481,7 +474,7 @@ def home():
                 try {
                     const r = await fetch('/test-sources?category='+encodeURIComponent(cat));
                     const results = await r.json();
-                    renderFeedList(results); // On re-rend la liste avec les icones
+                    renderFeedList(results);
                 } catch(e) {
                     alert("Erreur test");
                 } finally {
@@ -524,7 +517,7 @@ def home():
                     });
                     const json = await res.json();
                     if(json.success) {
-                        alert(getTrans('msg_imp_success'));
+                        alert(getTrans('msg_imp_success') + "\n" + json.msg);
                         location.reload();
                     } else {
                         alert('Erreur: ' + (json.msg || 'Format invalide'));
@@ -694,14 +687,29 @@ def test_sources():
 def get_all_feeds():
     return jsonify(get_full_config())
 
-# --- NOUVEAUX ENDPOINTS IMPORT/EXPORT ---
+# --- ENDPOINTS IMPORT/EXPORT MIS A JOUR ---
 
 @app.route('/api/feeds/export')
 @requires_auth
 def export_feeds():
-    data = get_full_config()
-    response = make_response(json.dumps(data, indent=4, ensure_ascii=False))
-    response.headers['Content-Disposition'] = 'attachment; filename=feeds.json'
+    # 1. Récupération des flux
+    feeds_data = get_full_config()
+    
+    # 2. Récupération des articles sauvegardés
+    saved_objs = SavedArticle.query.all()
+    saved_data = [
+        {'url': s.url, 'title': s.title, 'category': s.category}
+        for s in saved_objs
+    ]
+    
+    # Structure complète
+    full_export = {
+        "feeds": feeds_data,
+        "saved": saved_data
+    }
+
+    response = make_response(json.dumps(full_export, indent=4, ensure_ascii=False))
+    response.headers['Content-Disposition'] = 'attachment; filename=serendipite_backup.json'
     response.headers['Content-Type'] = 'application/json'
     return response
 
@@ -718,12 +726,23 @@ def import_feeds():
     try:
         data = json.load(file)
         if not isinstance(data, dict):
-            return jsonify({"success": False, "msg": "Format JSON invalide (doit être un objet)"})
+            return jsonify({"success": False, "msg": "Format JSON invalide"})
             
         count_cat = 0
         count_url = 0
+        count_saved = 0
         
-        for cat_name, urls in data.items():
+        # Détection du format (Ancien vs Nouveau)
+        if "feeds" in data or "saved" in data:
+            feeds_part = data.get("feeds", {})
+            saved_part = data.get("saved", [])
+        else:
+            # Ancien format (juste des flux)
+            feeds_part = data
+            saved_part = []
+
+        # 1. Import des Flux
+        for cat_name, urls in feeds_part.items():
             if not isinstance(urls, list): continue
             
             safe_cat_name = sanitize_category_name(cat_name)
@@ -739,9 +758,24 @@ def import_feeds():
                     if not Feed.query.filter_by(category_name=safe_cat_name, url=url.strip()).first():
                         db.session.add(Feed(category_name=safe_cat_name, url=url.strip()))
                         count_url += 1
-                        
+        
+        # 2. Import des Articles Sauvegardés
+        for item in saved_part:
+            url = item.get('url')
+            title = item.get('title', 'Sans titre')
+            cat = item.get('category', 'Général')
+            
+            is_valid, _ = is_safe_url(url)
+            if is_valid:
+                if not SavedArticle.query.filter_by(url=url).first():
+                    db.session.add(SavedArticle(url=url, title=title, category=cat))
+                    count_saved += 1
+
         db.session.commit()
-        return jsonify({"success": True, "msg": f"Importé: {count_cat} catégories, {count_url} flux."})
+        return jsonify({
+            "success": True, 
+            "msg": f"Succès ! Flux: {count_url}, Catégories: {count_cat}, Articles: {count_saved}."
+        })
         
     except json.JSONDecodeError:
         return jsonify({"success": False, "msg": "Fichier JSON corrompu"})
