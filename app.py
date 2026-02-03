@@ -35,7 +35,7 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 # Augmenté à 2MB pour inclure les articles
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024 
 
 db = SQLAlchemy(app)
 
@@ -517,7 +517,7 @@ def home():
                     });
                     const json = await res.json();
                     if(json.success) {
-                        alert(getTrans('msg_imp_success') + "\n" + json.msg);
+                        alert(getTrans('msg_imp_success') + "\\n" + json.msg);
                         location.reload();
                     } else {
                         alert('Erreur: ' + (json.msg || 'Format invalide'));
@@ -687,7 +687,7 @@ def test_sources():
 def get_all_feeds():
     return jsonify(get_full_config())
 
-# --- ENDPOINTS IMPORT/EXPORT MIS A JOUR ---
+# --- ENDPOINTS IMPORT/EXPORT ---
 
 @app.route('/api/feeds/export')
 @requires_auth
