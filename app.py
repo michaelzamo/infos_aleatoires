@@ -40,7 +40,7 @@ app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024
 db = SQLAlchemy(app)
 
 # ==========================================
-# MODÈLES (MIS À JOUR)
+# MODÈLES
 # ==========================================
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -50,7 +50,6 @@ class Feed(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     category_name = db.Column(db.String(100), nullable=False)
     url = db.Column(db.String(500), nullable=False)
-    # Nouveau champ pour distinguer texte et audio
     media_type = db.Column(db.String(20), default='text', nullable=False) 
 
 class SavedArticle(db.Model):
@@ -60,25 +59,18 @@ class SavedArticle(db.Model):
     title = db.Column(db.String(500))
     media_type = db.Column(db.String(20), default='text', nullable=False)
 
-# Initialisation
 with app.app_context():
-    # Astuce: create_all ne touche pas aux tables existantes. 
-    # En cas de changement de schéma sur une BDD existante, il faut migrer ou reset.
     db.create_all()
-    
     # Données par défaut si vide
     if not Feed.query.first():
-        # Flux Texte
         cat_actu = "Actualités"
         if not Category.query.filter_by(name=cat_actu).first():
             db.session.add(Category(name=cat_actu))
         db.session.add(Feed(category_name=cat_actu, url="https://www.lemonde.fr/rss/une.xml", media_type='text'))
         
-        # Flux Podcast
         cat_pod = "Tech & Science"
         if not Category.query.filter_by(name=cat_pod).first():
             db.session.add(Category(name=cat_pod))
-        # Exemple: HugoDecrypte ou Radio France
         db.session.add(Feed(category_name=cat_pod, url="https://radiofrance-podcast.net/podcast09/rss_14312.xml", media_type='audio'))
         
         db.session.commit()
@@ -117,18 +109,26 @@ def sanitize_category_name(name):
     clean = re.sub(r'[^\w\s\-\.]', '', name)
     return clean.strip()[:100]
 
-# Récupère la config filtrée par type
+# --- CORRECTION MAJEURE ICI ---
 def get_config_by_type(m_type):
-    # On récupère toutes les catégories qui ont des flux de ce type
+    # 1. On récupère TOUTES les catégories existantes (même les vides)
+    all_cats = Category.query.order_by(Category.name).all()
+    # On initialise le dictionnaire avec des listes vides pour chaque catégorie
+    data = {c.name: [] for c in all_cats}
+
+    # 2. On récupère les flux du type demandé
     feeds = Feed.query.filter_by(media_type=m_type).all()
-    data = {}
+    
+    # 3. On remplit les listes
     for f in feeds:
-        if f.category_name not in data:
-            data[f.category_name] = []
-        data[f.category_name].append(f.url)
+        if f.category_name in data:
+            data[f.category_name].append(f.url)
+        else:
+            # Cas de sécurité si une catégorie a été supprimée salement
+            data[f.category_name] = [f.url]
+            
     return data
 
-# Récupère tout pour l'export
 def get_full_export_data():
     feeds = Feed.query.all()
     feeds_list = []
@@ -148,7 +148,6 @@ def get_full_export_data():
             "title": s.title,
             "media_type": s.media_type
         })
-        
     return {"feeds": feeds_list, "saved": saved_list}
 
 # ==========================================
@@ -157,11 +156,7 @@ def get_full_export_data():
 @app.route('/')
 @requires_auth
 def home():
-    # On charge les catégories initiales pour le mode texte par défaut
-    initial_config = get_config_by_type('text')
-    categories = list(initial_config.keys())
-    if not categories: categories = []
-
+    # Placeholder initial, le JS fera le vrai chargement
     return render_template_string('''
     <!DOCTYPE html>
     <html lang="fr">
@@ -199,7 +194,6 @@ def home():
                 font-size: calc(16px * var(--font-scale));
             }
             
-            /* Focus visible */
             button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
                 outline: 3px solid var(--col-primary); outline-offset: 3px; box-shadow: 0 0 8px rgba(0,0,0,0.2);
             }
@@ -212,7 +206,6 @@ def home():
             
             .card-content { padding: 2rem; }
 
-            /* TABS CSS */
             .tabs { display: flex; width: 100%; border-bottom: 1px solid var(--select-border); }
             .tab { 
                 flex: 1; padding: 15px; text-align: center; cursor: pointer; 
@@ -254,7 +247,6 @@ def home():
             .btn-save { background:var(--col-save); display:none; }
             .btn-read { background:var(--col-success); text-decoration: none; padding: 10px 20px; border-radius: 20px; color: white; display: inline-block; margin-top: 10px;}
             
-            /* Audio Player Customization (Basic) */
             audio { width: 100%; margin-top: 15px; }
 
             #managerSection { display:none; border:1px solid var(--select-border); }
@@ -355,7 +347,7 @@ def home():
                 <div class="cat-row">
                     <label for="categorySelect" class="visually-hidden">Catégorie</label>
                     <select id="categorySelect" class="cat-select" onchange="resetView()" aria-label="Choisir catégorie">
-                        </select>
+                    </select>
                     <button class="btn-manage" onclick="toggleManager()" title="Gérer" aria-label="Gérer les flux">⚙️</button>
                 </div>
 
@@ -378,11 +370,8 @@ def home():
         <script>
             let currentData = null;
             let currentMediaType = 'text'; // 'text' ou 'audio'
-            let categoriesByMode = { text: [], audio: [] };
+            let currentManagerData = {};
             
-            // Initialisation des données (Categories seront chargées via API au démarrage)
-            // On utilise des placeholders, le JS va tout écraser au chargement.
-
             const translations = {
                 fr: {
                     app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale",
@@ -444,12 +433,11 @@ def home():
             applyLanguage(savedL); document.getElementById('langSelect').value=savedL;
 
             // Démarrage
-            switchMode('text'); // Charge les données text par défaut
+            switchMode('text'); 
 
             function switchMode(mode) {
                 currentMediaType = mode;
                 
-                // Tabs UI
                 document.querySelectorAll('.tab').forEach(t => {
                     t.classList.remove('active');
                     t.setAttribute('aria-selected', 'false');
@@ -457,19 +445,14 @@ def home():
                 document.getElementById('tab-' + mode).classList.add('active');
                 document.getElementById('tab-' + mode).setAttribute('aria-selected', 'true');
                 
-                // Update UI text for Manager
                 const labelKey = mode === 'text' ? 'mode_text' : 'mode_audio';
                 document.getElementById('manModeLabel').textContent = getTrans(labelKey);
 
-                // Reload categories for this mode
                 loadCategoriesForMode();
-                
-                // Reset View
                 resetView();
             }
 
             async function loadCategoriesForMode() {
-                // Fetch categories and feeds for current type
                 const res = await fetch('/api/feeds/get_config?media_type=' + currentMediaType);
                 const data = await res.json();
                 
@@ -492,7 +475,6 @@ def home():
                 
                 loadSavedLinks();
                 
-                // If manager is open, refresh it too
                 if(document.getElementById('managerSection').style.display === 'block') {
                     loadManagerData();
                 }
@@ -514,7 +496,6 @@ def home():
             
             function changeLanguage(){ 
                 const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); 
-                // Update tabs labels manually or refresh page? Let's just update text we can
                 document.getElementById('manModeLabel').textContent = getTrans(currentMediaType === 'text' ? 'mode_text' : 'mode_audio');
                 resetView(); 
                 if(document.getElementById('managerSection').style.display === 'block') populateManagerSelect();
@@ -559,8 +540,7 @@ def home():
                     opt.textContent = cat;
                     sel.appendChild(opt);
                 });
-                // Restore selection if valid
-                if(prevVal && currentManagerData[prevVal]) {
+                if(prevVal && currentManagerData.hasOwnProperty(prevVal)) {
                     sel.value = prevVal;
                     renderFeedList();
                 } else {
@@ -703,10 +683,11 @@ def home():
                 
                 if(json.success) {
                     if(action === 'add_cat' || action === 'del_cat') {
-                        // On recharge tout car la liste des catégories a changé
-                        loadCategoriesForMode(); 
+                        // On doit recharger la liste complète des catégories pour le mode actuel
+                        await loadCategoriesForMode(); 
                         if(action === 'add_cat') document.getElementById('newCatInput').value = '';
                     } else {
+                        // Pour ajout URL ou suppression URL, on recharge juste le manager data
                         await loadManagerData();
                         document.getElementById('managerCatSelect').value = category;
                         renderFeedList();
@@ -733,7 +714,6 @@ def home():
                 document.getElementById('saveBtn').style.display='none';
 
                 try {
-                    // On passe le media_type
                     const r = await fetch(`/get-random?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
                     const d = await r.json();
                     btn.disabled=false; btn.style.opacity="1";
@@ -743,7 +723,6 @@ def home():
                     
                     document.getElementById('saveBtn').style.display='inline-block';
                     
-                    // Rendu différent selon audio ou text
                     let mediaHtml = '';
                     let actionBtn = '';
                     
@@ -779,7 +758,6 @@ def home():
             
             async function loadSavedLinks(){
                 const cat = document.getElementById('categorySelect').value;
-                // Filter saved links by current media type as well
                 const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
                 const l = await r.json();
                 const ul = document.getElementById('savedList');
@@ -804,7 +782,7 @@ def home():
     ''')
 
 # ==========================================
-# API ENDPOINTS (MODIFIÉS POUR LE TYPE)
+# API ENDPOINTS
 # ==========================================
 
 @app.route('/get-random')
@@ -825,21 +803,17 @@ def get_random():
         art = random.choice(feed.entries)
         summary = art.get('summary', '') or art.get('subtitle', '')
         
-        # Nettoyage HTML basique du résumé
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(summary, "html.parser")
         clean_summary = soup.get_text()[:300] + "..."
         
-        # Détection Audio pour les podcasts
         audio_url = None
         if m_type == 'audio':
-            # Chercher dans les "enclosures" (standard RSS podcast)
             if hasattr(art, 'enclosures'):
                 for enc in art.enclosures:
                     if enc.type.startswith('audio'):
                         audio_url = enc.href
                         break
-            # Fallback : chercher dans les liens si pas d'enclosure
             if not audio_url and hasattr(art, 'links'):
                 for link in art.links:
                     if link.type and link.type.startswith('audio'):
@@ -881,10 +855,10 @@ def api_get_config():
 @app.route('/api/feeds/get_all')
 @requires_auth
 def get_all_feeds():
-    # Legacy endpoint, or used for generic purposes
+    # Retourne la config texte par défaut pour compatibilité
     return jsonify(get_config_by_type('text'))
 
-# --- EXPORT / IMPORT (UPDATED) ---
+# --- EXPORT / IMPORT ---
 
 @app.route('/api/feeds/export')
 @requires_auth
@@ -910,9 +884,7 @@ def import_feeds():
         count_url = 0
         count_saved = 0
         
-        # Support nouveau format (liste dans "feeds")
         if "feeds" in data and isinstance(data["feeds"], list):
-            # NEW FORMAT IMPORT
             feeds_list = data["feeds"]
             for item in feeds_list:
                 cat_name = item.get('category')
@@ -922,7 +894,6 @@ def import_feeds():
                 safe_cat = sanitize_category_name(cat_name)
                 if not safe_cat: continue
                 
-                # Create cat if missing
                 if not Category.query.filter_by(name=safe_cat).first():
                     db.session.add(Category(name=safe_cat))
                     count_cat += 1
@@ -935,7 +906,6 @@ def import_feeds():
                         count_url += 1
 
         elif "feeds" in data and isinstance(data["feeds"], dict):
-             # OLD FORMAT FALLBACK (Text assumed)
              for cat_name, urls in data["feeds"].items():
                 safe_cat = sanitize_category_name(cat_name)
                 if not Category.query.filter_by(name=safe_cat).first():
@@ -947,7 +917,6 @@ def import_feeds():
                             db.session.add(Feed(category_name=safe_cat, url=url, media_type='text'))
                             count_url += 1
 
-        # Saved articles import
         if "saved" in data:
             for item in data["saved"]:
                 try:
@@ -976,7 +945,7 @@ def manage_feeds():
     action = d.get('action')
     cat = d.get('category')
     url = d.get('url')
-    m_type = d.get('media_type', 'text') # Important: savoir quoi ajouter
+    m_type = d.get('media_type', 'text')
     
     try:
         if action == 'add_cat':
@@ -985,7 +954,6 @@ def manage_feeds():
                 db.session.commit()
         
         elif action == 'del_cat':
-            # On supprime la catégorie et TOUS les flux associés (text et audio)
             Category.query.filter_by(name=cat).delete()
             Feed.query.filter_by(category_name=cat).delete()
             db.session.commit()
@@ -997,12 +965,12 @@ def manage_feeds():
             if not Category.query.filter_by(name=cat).first():
                  db.session.add(Category(name=cat))
             
-            # Check doublon global pour cette catégorie
             if not Feed.query.filter_by(category_name=cat, url=url.strip()).first():
                 db.session.add(Feed(category_name=cat, url=url.strip(), media_type=m_type))
                 db.session.commit()
                 
         elif action == 'del_url':
+            # On supprime bien le flux correspondant (URL unique + catégorie)
             Feed.query.filter_by(category_name=cat, url=url).delete()
             db.session.commit()
             
@@ -1033,7 +1001,7 @@ def api_save():
 @requires_auth
 def api_list_saved():
     cat = request.args.get('category')
-    m_type = request.args.get('media_type') # Filter optional
+    m_type = request.args.get('media_type') 
     
     query = SavedArticle.query
     if cat and cat != '---':
@@ -1052,14 +1020,13 @@ def api_delete():
     db.session.commit()
     return jsonify({"success": True})
 
-# ROUTE DE SECOURS POUR RESET LA DB (A SUPPRIMER EN PROD SI NECESSAIRE)
 @app.route('/reset-db-force')
 @requires_auth
 def reset_db_force():
     try:
         db.drop_all()
         db.create_all()
-        return "Base de données réinitialisée avec succès (Tables supprimées et recréées)."
+        return "Base de données réinitialisée avec succès."
     except Exception as e:
         return f"Erreur reset: {e}"
 
