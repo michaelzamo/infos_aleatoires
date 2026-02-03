@@ -144,6 +144,21 @@ def home():
                 --tag-bg: #333; --select-bg: #2c2c2c; --select-border: #444;
                 --shadow: rgba(0,0,0,0.5);
             }
+
+            /* --- ACCESSIBILITÉ VISUELLE (MODES VISION) --- */
+            body.achromatopsia { 
+                filter: grayscale(100%) contrast(110%); 
+            }
+            body.protanopia { 
+                --col-success: #0077be; /* Bleu au lieu de vert */
+                --col-error: #a8ad00;   /* Jaune sombre au lieu de rouge */
+            }
+            body.deuteranopia {
+                --col-success: #0050ef; 
+                --col-error: #d80073;   
+            }
+            /* --------------------------------------------- */
+
             body { 
                 font-family: "Noto Sans", sans-serif; display: flex; justify-content: center; align-items: center; 
                 min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;
@@ -152,7 +167,13 @@ def home():
                 font-size: calc(16px * var(--font-scale));
             }
             
-            /* CORRECTION: On force la taille calculée sur les conteneurs d'outils */
+            /* --- ACCESSIBILITÉ CLAVIER (FOCUS) --- */
+            button:focus-visible, select:focus-visible, input:focus-visible, a:focus-visible {
+                outline: 3px solid var(--col-primary);
+                outline-offset: 3px;
+                box-shadow: 0 0 8px rgba(0,0,0,0.2);
+            }
+
             .settings-container, #managerSection {
                 display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
                 background:var(--tag-bg); padding:10px; border-radius:8px;
@@ -160,7 +181,6 @@ def home():
             }
             .settings-container *, #managerSection * { font-size: 1em; }
             
-            /* Styles généraux pour inputs */
             button, select, input { font-size: 1em; }
 
             .card { 
@@ -169,38 +189,26 @@ def home():
                 max-height: 90vh; overflow-y: auto;
             }
             .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-            .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; }
+            .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; border-radius: 50%;}
             
             .settings-row { display:flex; justify-content:space-between; align-items:center; }
-            
-            /* Les labels hériteront maintenant correctement du conteneur */
             .setting-label { font-size:0.8em; font-weight:bold; color:var(--text-sub); }
             
             .a11y-select { 
-                padding:4px; 
-                border-radius:4px; 
-                border:1px solid var(--select-border); 
-                background:var(--select-bg); 
-                color:var(--text-main); 
-                max-width:120px;
+                padding:4px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); 
+                color:var(--text-main); max-width:120px;
                 font-size: calc(16px * var(--font-scale));
             }
             
             .cat-row { display:flex; gap:10px; align-items:center; margin-bottom:15px; }
-            
             .cat-select { 
-                flex-grow:1; 
-                padding:10px; 
-                border-radius:8px; 
-                border:1px solid var(--select-border); 
-                background:var(--select-bg); 
-                color:var(--text-main); 
+                flex-grow:1; padding:10px; border-radius:8px; border:1px solid var(--select-border); 
+                background:var(--select-bg); color:var(--text-main); 
                 font-size: calc(16px * var(--font-scale));
             }
             
             .btn-manage { 
-                background:none; border:none; cursor:pointer; 
-                color:var(--col-manage); padding:0 5px;
+                background:none; border:none; cursor:pointer; color:var(--col-manage); padding:0 5px;
                 font-size: calc(1.5em * var(--font-scale));
             }
             
@@ -234,19 +242,19 @@ def home():
         <div class="card">
             <div class="header-row">
                 <h1 data-i18n="app_title">Sérendipité</h1>
-                <button class="theme-toggle" onclick="toggleTheme()">🌓</button>
+                <button class="theme-toggle" onclick="toggleTheme()" aria-label="Changer le thème (Jour/Nuit)"><span aria-hidden="true">🌓</span></button>
             </div>
 
             <div class="settings-container">
                 <div class="settings-row">
-                    <span class="setting-label" data-i18n="lbl_lang">LANGUE</span>
+                    <label for="langSelect" class="setting-label" data-i18n="lbl_lang">LANGUE</label>
                     <select id="langSelect" class="a11y-select" onchange="changeLanguage()">
                         <option value="fr">Français</option><option value="en">English</option>
                         <option value="es">Español</option><option value="jp">日本語</option>
                     </select>
                 </div>
                 <div class="settings-row">
-                    <span class="setting-label" data-i18n="lbl_vision">VISION</span>
+                    <label for="colorBlindSelect" class="setting-label" data-i18n="lbl_vision">VISION</label>
                     <select id="colorBlindSelect" class="a11y-select" onchange="changeColorProfile()">
                         <option value="normal" data-i18n="vision_norm">Normale</option>
                         <option value="protanopia">Protanopia</option><option value="deuteranopia">Deuteranopia</option>
@@ -254,7 +262,7 @@ def home():
                     </select>
                 </div>
                 <div class="settings-row">
-                    <span class="setting-label" data-i18n="lbl_size">TAILLE</span>
+                    <label for="fontSlider" class="setting-label" data-i18n="lbl_size">TAILLE</label>
                     <input type="range" id="fontSlider" min="0.8" max="1.5" step="0.1" value="1" oninput="changeFontSize()">
                 </div>
             </div>
@@ -265,18 +273,18 @@ def home():
                 <div class="man-row" style="background:var(--bg-body); padding:5px; border-radius:4px; margin-bottom:10px;">
                     <button class="btn-small btn-imp" onclick="exportFeeds()" data-i18n="btn_export">⬇️ Export Full</button>
                     <button class="btn-small btn-imp" onclick="document.getElementById('importFile').click()" data-i18n="btn_import">⬆️ Import</button>
-                    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importFeeds(this)">
+                    <input type="file" id="importFile" style="display:none" accept=".json" onchange="importFeeds(this)" aria-label="Importer fichier JSON">
                 </div>
 
                 <div class="man-row">
-                    <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie..." data-i18n="ph_cat">
+                    <input type="text" id="newCatInput" class="man-input" placeholder="Nouvelle catégorie..." data-i18n="ph_cat" aria-label="Nom de la nouvelle catégorie">
                     <button class="btn-small btn-add" onclick="apiManage('add_cat')" data-i18n="btn_add">Ajouter</button>
                 </div>
 
                 <hr style="width:100%; border:0; border-top:1px solid var(--select-border); margin:10px 0;">
 
                 <div class="man-row">
-                    <label style="font-weight:bold; font-size:0.9em;" data-i18n="lbl_manage">Gérer :</label>
+                    <label for="managerCatSelect" style="font-weight:bold; font-size:0.9em;" data-i18n="lbl_manage">Gérer :</label>
                     <select id="managerCatSelect" class="man-input" onchange="renderFeedList()">
                     </select>
                 </div>
@@ -291,7 +299,7 @@ def home():
                     </div>
                     
                     <div class="man-row">
-                        <input type="text" id="newUrlInput" class="man-input" placeholder="http://..." data-i18n="ph_url">
+                        <input type="text" id="newUrlInput" class="man-input" placeholder="http://..." data-i18n="ph_url" aria-label="URL du flux RSS">
                         <button class="btn-small btn-add" onclick="addUrlToCurrent()" data-i18n="btn_add_url">Ajouter URL</button>
                     </div>
                     <div id="feedListContainer"></div>
@@ -299,15 +307,16 @@ def home():
             </div>
             
             <div class="cat-row">
-                <select id="categorySelect" class="cat-select" onchange="resetView()">
+                <label for="categorySelect" class="visually-hidden">Catégorie</label>
+                <select id="categorySelect" class="cat-select" onchange="resetView()" aria-label="Choisir la catégorie d'article">
                     {% for name in categories %}
                         <option value="{{ name }}">{{ name }}</option>
                     {% endfor %}
                 </select>
-                <button class="btn-manage" onclick="toggleManager()" title="Gérer les flux">⚙️</button>
+                <button class="btn-manage" onclick="toggleManager()" title="Gérer les flux" aria-label="Ouvrir le gestionnaire de flux">⚙️</button>
             </div>
 
-            <div id="content" style="min-height: 100px;">
+            <div id="content" aria-live="polite" style="min-height: 100px;">
                 <p data-i18n="intro_text">Cliquez pour découvrir.</p>
             </div>
             
@@ -474,15 +483,15 @@ def home():
                             const res = testResults.find(r => r.url === url);
                             if (res) {
                                 statusIcon = res.valid 
-                                    ? '<span class="test-indicator" title="OK">✅</span>' 
-                                    : '<span class="test-indicator" title="Erreur">❌</span>';
+                                    ? '<span class="test-indicator" title="OK" aria-label="Valide">✅</span>' 
+                                    : '<span class="test-indicator" title="Erreur" aria-label="Invalide">❌</span>';
                             }
                         }
 
                         div.innerHTML = `
                             ${statusIcon}
                             <span style="overflow:hidden; text-overflow:ellipsis; font-size:0.9em;">${url.replace('https://','')}</span>
-                            <button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${url}')">🗑</button>
+                            <button class="btn-small btn-del" onclick="apiManage('del_url', '${cat}', null, '${url}')" aria-label="Supprimer le flux">🗑</button>
                         `;
                         listContainer.appendChild(div);
                     });
@@ -654,7 +663,7 @@ def home():
                 l.forEach(i => {
                     ul.innerHTML += `<li class="list-item">
                         <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${i.title}</a>
-                        <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')">🗑</button>
+                        <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')" aria-label="Supprimer ${i.title}">🗑</button>
                     </li>`;
                 });
             }
