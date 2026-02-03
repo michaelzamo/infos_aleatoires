@@ -109,23 +109,40 @@ def sanitize_category_name(name):
     clean = re.sub(r'[^\w\s\-\.]', '', name)
     return clean.strip()[:100]
 
-# --- CORRECTION MAJEURE ICI ---
+# --- CORRECTION DE LA LOGIQUE DE FILTRE ---
 def get_config_by_type(m_type):
-    # 1. On récupère TOUTES les catégories existantes (même les vides)
+    # 1. On récupère toutes les catégories de base
     all_cats = Category.query.order_by(Category.name).all()
-    # On initialise le dictionnaire avec des listes vides pour chaque catégorie
-    data = {c.name: [] for c in all_cats}
-
-    # 2. On récupère les flux du type demandé
-    feeds = Feed.query.filter_by(media_type=m_type).all()
     
-    # 3. On remplit les listes
-    for f in feeds:
-        if f.category_name in data:
-            data[f.category_name].append(f.url)
-        else:
-            # Cas de sécurité si une catégorie a été supprimée salement
-            data[f.category_name] = [f.url]
+    # 2. On détermine les flux "cibles" (ceux qu'on veut voir)
+    target_feeds = Feed.query.filter_by(media_type=m_type).all()
+    # Liste des catégories qui contiennent au moins un flux du type demandé
+    target_cat_names = set(f.category_name for f in target_feeds)
+    
+    # 3. On détermine les flux "autres" (ceux qu'on veut cacher)
+    other_type = 'audio' if m_type == 'text' else 'text'
+    other_feeds = Feed.query.filter_by(media_type=other_type).all()
+    # Liste des catégories qui contiennent des flux de l'autre type
+    other_cat_names = set(f.category_name for f in other_feeds)
+    
+    data = {}
+    
+    for c in all_cats:
+        # LOGIQUE DE FILTRE STRICT :
+        # On garde la catégorie SI :
+        #   A) Elle contient des flux du type actuel (C'est une catégorie Text dans l'onglet Text)
+        #   OU
+        #   B) Elle est totalement vide (C'est une nouvelle catégorie, on doit pouvoir la voir pour y ajouter un flux)
+        
+        has_target = c.name in target_cat_names
+        has_other = c.name in other_cat_names
+        is_empty = (not has_target) and (not has_other)
+        
+        # Si la catégorie n'a que des flux de l'autre type, on la zappe.
+        if has_target or is_empty:
+            # On récupère les URLs spécifiques à ce media_type pour cette catégorie
+            cat_urls = [f.url for f in target_feeds if f.category_name == c.name]
+            data[c.name] = cat_urls
             
     return data
 
@@ -156,7 +173,6 @@ def get_full_export_data():
 @app.route('/')
 @requires_auth
 def home():
-    # Placeholder initial, le JS fera le vrai chargement
     return render_template_string('''
     <!DOCTYPE html>
     <html lang="fr">
