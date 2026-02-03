@@ -152,10 +152,11 @@ def home():
                 font-size: calc(16px * var(--font-scale));
             }
             
+            /* CORRECTION: On force la taille calculée sur les conteneurs d'outils */
             .settings-container, #managerSection {
                 display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
                 background:var(--tag-bg); padding:10px; border-radius:8px;
-                font-size: 1rem !important; 
+                font-size: calc(16px * var(--font-scale)) !important; 
             }
             .settings-container *, #managerSection * { font-size: 1em; }
             
@@ -171,9 +172,10 @@ def home():
             .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; }
             
             .settings-row { display:flex; justify-content:space-between; align-items:center; }
+            
+            /* Les labels hériteront maintenant correctement du conteneur */
             .setting-label { font-size:0.8em; font-weight:bold; color:var(--text-sub); }
             
-            /* CORRECTION ICI : On force la taille de police sur les menus Langue/Vision */
             .a11y-select { 
                 padding:4px; 
                 border-radius:4px; 
@@ -181,7 +183,7 @@ def home():
                 background:var(--select-bg); 
                 color:var(--text-main); 
                 max-width:120px;
-                font-size: calc(16px * var(--font-scale)); /* Force le redimensionnement */
+                font-size: calc(16px * var(--font-scale));
             }
             
             .cat-row { display:flex; gap:10px; align-items:center; margin-bottom:15px; }
