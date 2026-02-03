@@ -159,7 +159,7 @@ def home():
             }
             .settings-container *, #managerSection * { font-size: 1em; }
             
-            /* On s'assure que les boutons et inputs respectent l'échelle globale par défaut */
+            /* Styles généraux pour inputs */
             button, select, input { font-size: 1em; }
 
             .card { 
@@ -172,11 +172,20 @@ def home():
             
             .settings-row { display:flex; justify-content:space-between; align-items:center; }
             .setting-label { font-size:0.8em; font-weight:bold; color:var(--text-sub); }
-            .a11y-select { padding:4px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); max-width:120px;}
+            
+            /* CORRECTION ICI : On force la taille de police sur les menus Langue/Vision */
+            .a11y-select { 
+                padding:4px; 
+                border-radius:4px; 
+                border:1px solid var(--select-border); 
+                background:var(--select-bg); 
+                color:var(--text-main); 
+                max-width:120px;
+                font-size: calc(16px * var(--font-scale)); /* Force le redimensionnement */
+            }
             
             .cat-row { display:flex; gap:10px; align-items:center; margin-bottom:15px; }
             
-            /* CORRECTION: On force la taille de police calculée sur le select */
             .cat-select { 
                 flex-grow:1; 
                 padding:10px; 
@@ -184,13 +193,13 @@ def home():
                 border:1px solid var(--select-border); 
                 background:var(--select-bg); 
                 color:var(--text-main); 
-                font-size: calc(16px * var(--font-scale)); /* Force le redimensionnement */
+                font-size: calc(16px * var(--font-scale));
             }
             
             .btn-manage { 
                 background:none; border:none; cursor:pointer; 
                 color:var(--col-manage); padding:0 5px;
-                font-size: calc(1.5em * var(--font-scale)); /* L'icône grossit aussi */
+                font-size: calc(1.5em * var(--font-scale));
             }
             
             .action-buttons { display:flex; flex-direction:column; gap:10px; align-items:center; margin-top:20px; }
