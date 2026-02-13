@@ -1,31 +1,52 @@
-from flask import Flask, jsonify, render_template_string, request, Response, make_response
-from flask_sqlalchemy import SQLAlchemy
-import feedparser
-import random
+import sys
+import socket
+import secrets
+import ipaddress
+import re
 import os
+import random
 import html
 import json
-import re
 from functools import wraps
+from urllib.parse import urlparse
+
+from flask import Flask, jsonify, render_template_string, request, Response, make_response, abort
+from flask_sqlalchemy import SQLAlchemy
+import feedparser
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
+# ==========================================
+# 0. CONFIGURATION & SÉCURITÉ
+# ==========================================
 load_dotenv()
+
+# Protection contre le déni de service (DoS) :
+# Timeout global de 5 secondes pour toutes les opérations réseau (feedparser inclus)
+socket.setdefaulttimeout(5)
 
 app = Flask(__name__)
 
-# ==========================================
-# CONFIGURATION
-# ==========================================
 basedir = os.path.abspath(os.path.dirname(__file__))
 
+# 1. Gestion des Secrets (Critique pour les sessions et la crypto)
+app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+
+# 2. Gestion de l'Authentification Admin
 ADMIN_USERNAME = os.environ.get('ADMIN_USER')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASS')
 
+# Sécurité par défaut : Si pas de mot de passe dans .env, on en génère un aléatoire
+# pour éviter que le site soit accessible publiquement avec "admin/changezMoi123"
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-    print("⚠️  ATTENTION : Identifiants par défaut (admin/changezMoi123)")
-    ADMIN_USERNAME = 'admin'
-    ADMIN_PASSWORD = 'changezMoi123'
+    print("⚠️  SÉCURITÉ : Identifiants non définis dans le fichier .env")
+    temp_user = "admin"
+    temp_pass = secrets.token_urlsafe(16)
+    print(f"👉 Démarrage avec identifiants temporaires : User='{temp_user}' / Pass='{temp_pass}'")
+    ADMIN_USERNAME = temp_user
+    ADMIN_PASSWORD = temp_pass
 
+# 3. Base de données
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
@@ -35,12 +56,12 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 * 1024 
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # Limite payload à 1MB
 
 db = SQLAlchemy(app)
 
 # ==========================================
-# MODÈLES
+# MODÈLES DE DONNÉES
 # ==========================================
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -75,10 +96,13 @@ with app.app_context():
         db.session.commit()
 
 # ==========================================
-# SÉCURITÉ & UTILITAIRES
+# FONCTIONS DE SÉCURITÉ
 # ==========================================
+
 def check_auth(username, password):
-    return username == ADMIN_USERNAME and password == ADMIN_PASSWORD
+    """Vérification résistante aux attaques temporelles (Timing Attacks)"""
+    return (secrets.compare_digest(username, ADMIN_USERNAME) and 
+            secrets.compare_digest(password, ADMIN_PASSWORD))
 
 def authenticate():
     return Response('Connexion requise.\n', 401, {'WWW-Authenticate': 'Basic realm="Login Required"'})
@@ -92,16 +116,55 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-def is_safe_url(url):
+def validate_safe_url(url):
+    """
+    Protection SSRF (Server-Side Request Forgery).
+    Vérifie que l'URL ne pointe pas vers le réseau local ou interne.
+    """
     if not url: return False, "URL vide"
-    url_lower = url.strip().lower()
-    if not url_lower.startswith(('http://', 'https://')):
-        return False, "Protocole invalide"
-    forbidden = ['localhost', '127.', '0.0.0.0', '192.168.', '10.', '172.16.', '169.254.', '::1']
-    for host in forbidden:
-        if f"//{host}" in url_lower or f"@{host}" in url_lower or url_lower.startswith(host):
-             return False, "Adresse interdite"
-    return True, ""
+    try:
+        parsed = urlparse(url)
+        # 1. Vérification protocole
+        if parsed.scheme not in ('http', 'https'):
+            return False, "Protocole invalide (http/s requis)"
+        
+        hostname = parsed.hostname
+        if not hostname: return False, "Hôte invalide"
+
+        # 2. Résolution DNS pour obtenir l'IP réelle
+        ip_addr = socket.gethostbyname(hostname)
+        
+        # 3. Vérification si l'IP est privée/locale
+        ip = ipaddress.ip_address(ip_addr)
+        if ip.is_loopback or ip.is_private or ip.is_link_local:
+             return False, f"Adresse interdite (Réseau local détecté: {ip})"
+             
+        return True, ""
+    except Exception:
+        return False, "Domaine invalide ou introuvable"
+
+def sanitize_link(link):
+    """Protection XSS pour les liens (empêche javascript:...)"""
+    if not link: return "#"
+    link = link.strip()
+    # On autorise uniquement http et https
+    if link.lower().startswith(('http://', 'https://')):
+        return link
+    return "#"
+
+def check_csrf_origin():
+    """Protection CSRF basique pour les requêtes POST"""
+    if request.method == "POST":
+        origin = request.headers.get('Origin')
+        referer = request.headers.get('Referer')
+        host = request.headers.get('Host')
+        
+        # Si Origin est présent, il doit correspondre au Host
+        if origin and host and host not in origin:
+            abort(403, description="CSRF: Origin mismatch")
+        # Idem pour Referer
+        if referer and host and host not in referer:
+            abort(403, description="CSRF: Referer mismatch")
 
 def sanitize_category_name(name):
     if not isinstance(name, str): return "Inconnu"
@@ -110,7 +173,6 @@ def sanitize_category_name(name):
 
 def get_config_by_type(m_type):
     all_cats = Category.query.order_by(Category.name).all()
-    
     target_feeds = Feed.query.filter_by(media_type=m_type).all()
     target_cat_names = set(f.category_name for f in target_feeds)
     
@@ -119,7 +181,6 @@ def get_config_by_type(m_type):
     other_cat_names = set(f.category_name for f in other_feeds)
     
     data = {}
-    
     for c in all_cats:
         has_target = c.name in target_cat_names
         has_other = c.name in other_cat_names
@@ -128,32 +189,17 @@ def get_config_by_type(m_type):
         if has_target or is_empty:
             cat_urls = [f.url for f in target_feeds if f.category_name == c.name]
             data[c.name] = cat_urls
-            
     return data
 
 def get_full_export_data():
     feeds = Feed.query.all()
-    feeds_list = []
-    for f in feeds:
-        feeds_list.append({
-            "category": f.category_name,
-            "url": f.url,
-            "media_type": f.media_type
-        })
-    
+    feeds_list = [{"category": f.category_name, "url": f.url, "media_type": f.media_type} for f in feeds]
     saved = SavedArticle.query.all()
-    saved_list = []
-    for s in saved:
-        saved_list.append({
-            "category": s.category,
-            "url": s.url,
-            "title": s.title,
-            "media_type": s.media_type
-        })
+    saved_list = [{"category": s.category, "url": s.url, "title": s.title, "media_type": s.media_type} for s in saved]
     return {"feeds": feeds_list, "saved": saved_list}
 
 # ==========================================
-# FRONTEND
+# ROUTE PRINCIPALE (HTML)
 # ==========================================
 @app.route('/')
 @requires_auth
@@ -182,7 +228,6 @@ def home():
                 --tag-bg: #333; --select-bg: #2c2c2c; --select-border: #444;
                 --shadow: rgba(0,0,0,0.5);
             }
-            
             body.achromatopsia { filter: grayscale(100%) contrast(110%); }
             body.protanopia { --col-success: #0077be; --col-error: #a8ad00; }
             body.deuteranopia { --col-success: #0050ef; --col-error: #d80073; }
@@ -482,7 +527,6 @@ def home():
                     });
                 }
                 
-                // On appelle loadSavedLinks UNIQUEMENT quand le select est prêt
                 loadSavedLinks();
                 
                 if(document.getElementById('managerSection').style.display === 'block') {
@@ -508,7 +552,6 @@ def home():
                 const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); 
                 document.getElementById('manModeLabel').textContent = getTrans(currentMediaType === 'text' ? 'mode_text' : 'mode_audio');
                 resetView();
-                // IMPORTANT: On force le rechargement de la liste filtrée après le changement de langue
                 loadSavedLinks();
                 if(document.getElementById('managerSection').style.display === 'block') populateManagerSelect();
             }
@@ -695,11 +738,9 @@ def home():
                 
                 if(json.success) {
                     if(action === 'add_cat' || action === 'del_cat') {
-                        // On doit recharger la liste complète des catégories pour le mode actuel
                         await loadCategoriesForMode(); 
                         if(action === 'add_cat') document.getElementById('newCatInput').value = '';
                     } else {
-                        // Pour ajout URL ou suppression URL, on recharge juste le manager data
                         await loadManagerData();
                         document.getElementById('managerCatSelect').value = category;
                         renderFeedList();
@@ -771,13 +812,12 @@ def home():
                 const cat = document.getElementById('categorySelect').value;
                 const ul = document.getElementById('savedList');
                 
-                // Affiche le message d'attente
                 ul.innerHTML = `<li class="list-item" style="justify-content:center; font-style:italic; color:var(--text-sub);">${getTrans('msg_updating')}</li>`;
                 
                 try {
                     const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
                     const l = await r.json();
-                    ul.innerHTML = ''; // On vide le message de chargement
+                    ul.innerHTML = ''; 
                     
                     l.forEach(i => {
                         let icon = i.media_type === 'audio' ? '🎧 ' : '';
@@ -815,35 +855,46 @@ def get_random():
     urls = config.get(cat, [])
     
     if not urls: return jsonify({"error": "Catégorie vide"})
+    
     try:
         url = random.choice(urls)
+        
+        # SÉCURITÉ : Validation SSRF
+        is_safe, msg = validate_safe_url(url)
+        if not is_safe:
+            return jsonify({"error": f"Flux bloqué par sécurité : {msg}", "source": url})
+
         feed = feedparser.parse(url)
-        if not feed.entries: return jsonify({"error": "Flux vide", "source": url})
+        if not feed.entries: return jsonify({"error": "Flux vide ou inaccessible", "source": url})
         
         art = random.choice(feed.entries)
-        summary = art.get('summary', '') or art.get('subtitle', '')
         
-        from bs4 import BeautifulSoup
+        # Nettoyage résumé
+        summary = art.get('summary', '') or art.get('subtitle', '')
         soup = BeautifulSoup(summary, "html.parser")
         clean_summary = soup.get_text()[:300] + "..."
+        
+        # SÉCURITÉ : Nettoyage lien
+        raw_link = art.get('link', '#')
+        clean_link = sanitize_link(raw_link)
         
         audio_url = None
         if m_type == 'audio':
             if hasattr(art, 'enclosures'):
                 for enc in art.enclosures:
                     if enc.type.startswith('audio'):
-                        audio_url = enc.href
+                        audio_url = sanitize_link(enc.href)
                         break
             if not audio_url and hasattr(art, 'links'):
                 for link in art.links:
                     if link.type and link.type.startswith('audio'):
-                        audio_url = link.href
+                        audio_url = sanitize_link(link.href)
                         break
         
         return jsonify({
             "source": html.escape(feed.feed.get('title', 'Source')),
             "title": html.escape(art.get('title', 'No Title')),
-            "link": art.get('link', '#'),
+            "link": clean_link,
             "summary": clean_summary,
             "audio_url": audio_url
         })
@@ -860,6 +911,12 @@ def test_sources():
     
     rep = []
     for u in urls:
+        # SÉCURITÉ SSRF
+        is_safe, msg = validate_safe_url(u)
+        if not is_safe:
+             rep.append({"url": u, "valid": False, "error": msg})
+             continue
+
         try:
             f = feedparser.parse(u)
             rep.append({"url": u, "valid": (hasattr(f,'entries') and len(f.entries)>0)})
@@ -875,7 +932,6 @@ def api_get_config():
 @app.route('/api/feeds/get_all')
 @requires_auth
 def get_all_feeds():
-    # Retourne la config texte par défaut pour compatibilité
     return jsonify(get_config_by_type('text'))
 
 # --- EXPORT / IMPORT ---
@@ -892,6 +948,7 @@ def export_feeds():
 @app.route('/api/feeds/import', methods=['POST'])
 @requires_auth
 def import_feeds():
+    check_csrf_origin() # SÉCURITÉ CSRF
     if 'file' not in request.files: return jsonify({"success": False, "msg": "No file"})
     file = request.files['file']
     if file.filename == '': return jsonify({"success": False, "msg": "Empty filename"})
@@ -899,31 +956,31 @@ def import_feeds():
     try:
         data = json.load(file)
         if not isinstance(data, dict): return jsonify({"success": False, "msg": "Invalid JSON"})
-            
+           
         count_cat = 0
         count_url = 0
         count_saved = 0
         
+        # Logique d'import avec vérification de sécurité sur les URLs
         if "feeds" in data and isinstance(data["feeds"], list):
-            feeds_list = data["feeds"]
-            for item in feeds_list:
+            for item in data["feeds"]:
                 cat_name = item.get('category')
                 url = item.get('url')
                 m_type = item.get('media_type', 'text')
                 
                 safe_cat = sanitize_category_name(cat_name)
                 if not safe_cat: continue
+
+                # SÉCURITÉ : On ne sauvegarde pas les URLs internes lors de l'import
+                if not validate_safe_url(url)[0]: continue
                 
                 if not Category.query.filter_by(name=safe_cat).first():
                     db.session.add(Category(name=safe_cat))
                     count_cat += 1
                 
-                is_valid, _ = is_safe_url(url)
-                if is_valid:
-                    trunc_url = url.strip()[:500]
-                    if not Feed.query.filter_by(category_name=safe_cat, url=trunc_url).first():
-                        db.session.add(Feed(category_name=safe_cat, url=trunc_url, media_type=m_type))
-                        count_url += 1
+                if not Feed.query.filter_by(category_name=safe_cat, url=url[:500]).first():
+                    db.session.add(Feed(category_name=safe_cat, url=url[:500], media_type=m_type))
+                    count_url += 1
 
         elif "feeds" in data and isinstance(data["feeds"], dict):
              for cat_name, urls in data["feeds"].items():
@@ -932,7 +989,7 @@ def import_feeds():
                     db.session.add(Category(name=safe_cat))
                     count_cat += 1
                 for url in urls:
-                    if is_safe_url(url)[0]:
+                    if validate_safe_url(url)[0]: # SÉCURITÉ SSRF
                          if not Feed.query.filter_by(category_name=safe_cat, url=url).first():
                             db.session.add(Feed(category_name=safe_cat, url=url, media_type='text'))
                             count_url += 1
@@ -945,7 +1002,7 @@ def import_feeds():
                     cat = item.get('category', 'Général')
                     m_type = item.get('media_type', 'text')
                     
-                    if is_safe_url(url)[0]:
+                    if validate_safe_url(url)[0]: # SÉCURITÉ SSRF
                         if not SavedArticle.query.filter_by(url=url[:500]).first():
                             db.session.add(SavedArticle(url=url[:500], title=title[:500], category=cat[:100], media_type=m_type))
                             count_saved += 1
@@ -961,6 +1018,7 @@ def import_feeds():
 @app.route('/api/feeds/manage', methods=['POST'])
 @requires_auth
 def manage_feeds():
+    check_csrf_origin() # SÉCURITÉ CSRF
     d = request.json
     action = d.get('action')
     cat = d.get('category')
@@ -977,10 +1035,11 @@ def manage_feeds():
             Category.query.filter_by(name=cat).delete()
             Feed.query.filter_by(category_name=cat).delete()
             db.session.commit()
-            
+           
         elif action == 'add_url':
-            is_valid, error_msg = is_safe_url(url)
-            if not is_valid: return jsonify({"success": False, "msg": error_msg})
+            # SÉCURITÉ : Validation de l'URL avant ajout
+            is_valid, msg = validate_safe_url(url)
+            if not is_valid: return jsonify({"success": False, "msg": msg})
             
             if not Category.query.filter_by(name=cat).first():
                  db.session.add(Category(name=cat))
@@ -990,7 +1049,6 @@ def manage_feeds():
                 db.session.commit()
                 
         elif action == 'del_url':
-            # On supprime bien le flux correspondant (URL unique + catégorie)
             Feed.query.filter_by(category_name=cat, url=url).delete()
             db.session.commit()
             
@@ -1001,9 +1059,13 @@ def manage_feeds():
 @app.route('/api/save', methods=['POST'])
 @requires_auth
 def api_save():
+    check_csrf_origin() # SÉCURITÉ CSRF
     d = request.json
     url_to_save = d.get('url') or d.get('link')
-    if not url_to_save: return jsonify({"success": False})
+    
+    # SÉCURITÉ : Nettoyage lien
+    url_to_save = sanitize_link(url_to_save)
+    if url_to_save == "#": return jsonify({"success": False})
     
     try:
         if not SavedArticle.query.filter_by(url=url_to_save).first():
@@ -1035,21 +1097,12 @@ def api_list_saved():
 @app.route('/api/delete', methods=['POST'])
 @requires_auth
 def api_delete():
+    check_csrf_origin() # SÉCURITÉ CSRF
     url = request.json.get('url')
     SavedArticle.query.filter_by(url=url).delete()
     db.session.commit()
     return jsonify({"success": True})
 
-@app.route('/reset-db-force')
-@requires_auth
-def reset_db_force():
-    try:
-        db.drop_all()
-        db.create_all()
-        return "Base de données réinitialisée avec succès."
-    except Exception as e:
-        return f"Erreur reset: {e}"
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
