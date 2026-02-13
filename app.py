@@ -7,15 +7,16 @@ import os
 import random
 import html
 import json
-import requests  # Pour effectuer la requête HTTP sécurisée
+import requests
 from functools import wraps
 from urllib.parse import urlparse
 
 from flask import Flask, jsonify, render_template, request, Response, make_response, abort
 from flask_sqlalchemy import SQLAlchemy
-from flask_wtf.csrf import CSRFProtect  # Protection CSRF robuste
-from flask_limiter import Limiter  # Rate Limiting
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from werkzeug.middleware.proxy_fix import ProxyFix  # Pour gérer les IPs derrière un proxy (Render/Heroku)
 import feedparser
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
@@ -25,24 +26,27 @@ from dotenv import load_dotenv
 # ==========================================
 load_dotenv()
 
-# 1. Protection Identifiants (Correctif #5)
+# 1. Protection Identifiants
 ADMIN_USERNAME = os.environ.get('ADMIN_USER')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASS')
 
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     print("❌ ERREUR CRITIQUE DE SÉCURITÉ")
     print("Les variables d'environnement ADMIN_USER et ADMIN_PASS sont OBLIGATOIRES.")
-    print("L'application refuse de démarrer avec des identifiants par défaut ou temporaires.")
-    sys.exit(1) # Arrêt immédiat de l'application
+    sys.exit(1)
 
 app = Flask(__name__)
 basedir = os.path.abspath(os.path.dirname(__file__))
 
+# 2. Configuration Proxy (CRITIQUE pour le Rate Limiting sur Render/Heroku)
+# x_for=1 signifie qu'on fait confiance au dernier proxy (le load balancer de l'hébergeur)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
 # Configuration Secrets
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
-# 2. Rate Limiting (Correctif #4)
-# Limite globale par défaut et stockage en mémoire
+# 3. Rate Limiting
+# Grâce à ProxyFix, get_remote_address renverra la vraie IP utilisateur
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -50,8 +54,29 @@ limiter = Limiter(
     storage_uri="memory://"
 )
 
-# 3. Protection CSRF (Correctif #2)
+# 4. Protection CSRF
 csrf = CSRFProtect(app)
+
+# 5. En-têtes de Sécurité HTTP (Security Headers)
+@app.after_request
+def add_security_headers(response):
+    # Empêche le navigateur d'interpréter des fichiers comme autre chose que leur type déclaré
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # Empêche le site d'être affiché dans une iframe (Anti-Clickjacking)
+    response.headers['X-Frame-Options'] = 'DENY'
+    # Politique de confidentialité du Referer
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+    # Content Security Policy (CSP) stricte
+    # Autorise: Scripts locaux, Styles inline (nécessaire pour votre UI), Images/Audio externes (pour les flux)
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: https:; "
+        "media-src 'self' https:; "
+        "connect-src 'self';"
+    )
+    return response
 
 # Configuration DB
 database_url = os.environ.get('DATABASE_URL')
@@ -63,12 +88,15 @@ if not database_url:
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1MB Max Upload
 
 db = SQLAlchemy(app)
 
+# Timeout global socket (Défense en profondeur contre DoS réseau)
+socket.setdefaulttimeout(5)
+
 # ==========================================
-# MODÈLES DE DONNÉES (Inchangés)
+# MODÈLES DE DONNÉES
 # ==========================================
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -89,7 +117,6 @@ class SavedArticle(db.Model):
 
 with app.app_context():
     db.create_all()
-    # Initialisation DB (inchangée...)
     if not Feed.query.first():
         cat_actu = "Actualités"
         if not Category.query.filter_by(name=cat_actu).first():
@@ -102,7 +129,7 @@ with app.app_context():
         db.session.commit()
 
 # ==========================================
-# FONCTIONS DE SÉCURITÉ AVANCÉES
+# FONCTIONS DE SÉCURITÉ
 # ==========================================
 
 def check_auth(username, password):
@@ -121,13 +148,9 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-# Correctif #1 : Protection Anti-DNS Rebinding
 def safe_fetch_rss(url):
     """
-    Récupère le contenu RSS de manière sécurisée en prévenant le DNS Rebinding.
-    1. Résout l'IP.
-    2. Vérifie que l'IP est publique.
-    3. Effectue la requête directement vers l'IP (en forçant le header Host).
+    Récupère le RSS en empêchant le DNS Rebinding ET les redirections malveillantes.
     """
     if not url: return None, "URL vide"
     
@@ -137,10 +160,11 @@ def safe_fetch_rss(url):
             return None, "Protocole invalide"
         
         hostname = parsed.hostname
-        port = parsed.port or (443 if parsed.scheme == 'https' else 80)
-        
         # 1. Résolution DNS
-        ip_addr = socket.gethostbyname(hostname)
+        try:
+            ip_addr = socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return None, "Domaine introuvable"
         
         # 2. Vérification IP (Liste noire locale)
         ip = ipaddress.ip_address(ip_addr)
@@ -148,16 +172,22 @@ def safe_fetch_rss(url):
             return None, f"Accès interdit (IP locale détectée: {ip})"
             
         # 3. Requête "Epinglée" sur l'IP
-        # On remplace le hostname par l'IP dans l'URL pour la requête requests
-        # Mais on garde le hostname dans le header 'Host' pour que le serveur virtuel (VHost) comprenne.
         target_url = url.replace(hostname, ip_addr, 1)
         headers = {'Host': hostname, 'User-Agent': 'Serendipite-RSS-Bot/1.0'}
         
-        # Note: verify=False est nécessaire ici car le certificat SSL sera valide pour 
-        # le hostname, mais pas pour l'IP. C'est un compromis acceptable pour des flux RSS publics.
-        # Pour une sécurité maximale en HTTPS, il faudrait un contexte SSL personnalisé complexe.
-        response = requests.get(target_url, headers=headers, timeout=5, verify=False)
+        # AMÉLIORATION CRITIQUE : allow_redirects=False
+        # On interdit les redirections pour éviter qu'un site valide ne redirige vers 127.0.0.1
+        response = requests.get(
+            target_url, 
+            headers=headers, 
+            timeout=5, 
+            verify=False, # Nécessaire car on accède via IP (Compromis sécurité SSL vs SSRF)
+            allow_redirects=False 
+        )
         
+        if response.is_redirect:
+            return None, "Redirections interdites par sécurité (Anti-SSRF Bypass)"
+
         if response.status_code != 200:
             return None, f"Erreur HTTP {response.status_code}"
             
@@ -179,7 +209,6 @@ def sanitize_category_name(name):
     return clean.strip()[:100]
 
 def get_config_by_type(m_type):
-    # (Logique inchangée - récupération des flux)
     all_cats = Category.query.order_by(Category.name).all()
     target_feeds = Feed.query.filter_by(media_type=m_type).all()
     target_cat_names = set(f.category_name for f in target_feeds)
@@ -209,13 +238,12 @@ def get_full_export_data():
 
 @app.route('/')
 @requires_auth
-# Correctif #3 : SSTI -> Utilisation de render_template au lieu de render_template_string
 def home():
     return render_template('index.html')
 
 @app.route('/get-random')
 @requires_auth
-@limiter.limit("10 per minute") # Correctif #4 : Rate Limiting strict sur les actions lourdes
+@limiter.limit("10 per minute")
 def get_random():
     cat = request.args.get('category')
     m_type = request.args.get('media_type', 'text')
@@ -228,20 +256,16 @@ def get_random():
     try:
         url = random.choice(urls)
         
-        # UTILISATION DU NOUVEAU FETCH SÉCURISÉ (DNS REBINDING PROOF)
+        # Fetch Sécurisé
         content, error_msg = safe_fetch_rss(url)
-        
         if error_msg:
              return jsonify({"error": f"Sécurité/Réseau : {error_msg}", "source": url})
 
-        # On passe le contenu brut à feedparser (pas l'URL)
         feed = feedparser.parse(content)
-        
         if not feed.entries: return jsonify({"error": "Flux vide ou illisible", "source": url})
         
         art = random.choice(feed.entries)
         
-        # Nettoyage et préparation (inchangé)
         summary = art.get('summary', '') or art.get('subtitle', '')
         soup = BeautifulSoup(summary, "html.parser")
         clean_summary = soup.get_text()[:300] + "..."
@@ -271,7 +295,7 @@ def get_random():
 
 @app.route('/test-sources')
 @requires_auth
-@limiter.limit("2 per minute") # Rate limit très strict pour éviter le DoS par scan
+@limiter.limit("5 per minute") 
 def test_sources():
     cat = request.args.get('category')
     m_type = request.args.get('media_type', 'text')
@@ -280,12 +304,10 @@ def test_sources():
     
     rep = []
     for u in urls:
-        # Test utilisant la méthode sécurisée
         content, err = safe_fetch_rss(u)
         if err:
              rep.append({"url": u, "valid": False, "error": err})
              continue
-
         try:
             f = feedparser.parse(content)
             rep.append({"url": u, "valid": (hasattr(f,'entries') and len(f.entries)>0)})
@@ -298,9 +320,7 @@ def api_get_config():
     m_type = request.args.get('media_type', 'text')
     return jsonify(get_config_by_type(m_type))
 
-# --- ROUTES DE MODIFICATION (POST) ---
-# Flask-WTF protège automatiquement ces routes car CSRFProtect est actif.
-# Si le token manque dans le Header 'X-CSRFToken', la requête sera rejetée (400 Bad Request).
+# --- ROUTES POST (Protégées par CSRF & Rate Limit) ---
 
 @app.route('/api/feeds/export')
 @requires_auth
@@ -323,14 +343,13 @@ def import_feeds():
         if not isinstance(data, dict): return jsonify({"success": False, "msg": "Invalid JSON"})
         count_cat = 0; count_url = 0; count_saved = 0
         
-        # Logique Import (Avec vérification safe_fetch pour valider l'URL)
         if "feeds" in data and isinstance(data["feeds"], list):
             for item in data["feeds"]:
                 cat = sanitize_category_name(item.get('category'))
                 url = item.get('url')
                 if not cat: continue
-                
-                # Check rapide si l'URL est au moins syntaxiquement correcte
+                # On accepte l'URL lors de l'import (le check IP se fera au fetch)
+                # Mais on vérifie au moins le format http/s
                 if sanitize_link(url) == "#": continue 
                 
                 if not Category.query.filter_by(name=cat).first():
@@ -340,7 +359,6 @@ def import_feeds():
                     db.session.add(Feed(category_name=cat, url=url[:500], media_type=item.get('media_type','text')))
                     count_url += 1
         
-        # (Le reste de l'import saved articles... inchangé)
         if "saved" in data:
             for item in data["saved"]:
                 url = item.get('url')
@@ -372,7 +390,6 @@ def manage_feeds():
             Category.query.filter_by(name=cat).delete()
             Feed.query.filter_by(category_name=cat).delete(); db.session.commit()
         elif action == 'add_url':
-            # Validation de l'URL via URLParser simple ici (le fetch vérifiera l'IP plus tard)
             if sanitize_link(url) == "#": return jsonify({"success":False, "msg":"URL invalide"})
             if not Category.query.filter_by(name=cat).first(): db.session.add(Category(name=cat))
             if not Feed.query.filter_by(category_name=cat, url=url.strip()).first():
