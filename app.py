@@ -150,7 +150,9 @@ def requires_auth(f):
 
 def safe_fetch_rss(url):
     """
-    Récupère le RSS en empêchant le DNS Rebinding ET les redirections malveillantes.
+    Récupère le RSS de manière sécurisée.
+    Vérifie l'IP avant la requête pour éviter le SSRF,
+    mais utilise le nom de domaine pour la connexion (support SNI/Cloudflare).
     """
     if not url: return None, "URL vide"
     
@@ -160,29 +162,30 @@ def safe_fetch_rss(url):
             return None, "Protocole invalide"
         
         hostname = parsed.hostname
-        # 1. Résolution DNS
+        
+        # 1. Résolution DNS & Vérification de sécurité (Anti-SSRF)
         try:
             ip_addr = socket.gethostbyname(hostname)
         except socket.gaierror:
             return None, "Domaine introuvable"
         
-        # 2. Vérification IP (Liste noire locale)
+        # On interdit l'accès aux IPs locales/privées
         ip = ipaddress.ip_address(ip_addr)
         if ip.is_loopback or ip.is_private or ip.is_link_local:
             return None, f"Accès interdit (IP locale détectée: {ip})"
             
-        # 3. Requête "Epinglée" sur l'IP
-        target_url = url.replace(hostname, ip_addr, 1)
-        headers = {'Host': hostname, 'User-Agent': 'Serendipite-RSS-Bot/1.0'}
+        # 2. Requête HTTP Standard (avec protection Redirection)
+        # On utilise l'URL d'origine (avec le nom de domaine) pour que le SNI fonctionne.
+        # On garde allow_redirects=False pour empêcher le contournement de la vérification IP.
         
-        # AMÉLIORATION CRITIQUE : allow_redirects=False
-        # On interdit les redirections pour éviter qu'un site valide ne redirige vers 127.0.0.1
+        headers = {'User-Agent': 'Serendipite-RSS-Bot/1.0'}
+        
         response = requests.get(
-            target_url, 
+            url,  # <--- On remet l'URL originale ici
             headers=headers, 
             timeout=5, 
-            verify=False, # Nécessaire car on accède via IP (Compromis sécurité SSL vs SSRF)
-            allow_redirects=False 
+            verify=True, # On peut réactiver la vérification SSL car on utilise le bon domaine !
+            allow_redirects=False # CRITIQUE : On interdit toujours les redirections
         )
         
         if response.is_redirect:
@@ -435,4 +438,5 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
