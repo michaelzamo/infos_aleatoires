@@ -347,7 +347,7 @@ def home():
                 
                 <div class="cat-row">
                     <label for="categorySelect" style="font-weight:bold; font-size:0.8em; color:var(--text-sub);" data-i18n="lbl_cat">CATÉGORIE</label>
-                    <select id="categorySelect" class="cat-select" onchange="resetView()" aria-label="Choisir catégorie">
+                    <select id="categorySelect" class="cat-select" onchange="resetView(); loadSavedLinks()" aria-label="Choisir catégorie">
                     </select>
                     <button class="btn-manage" onclick="toggleManager()" title="Gérer" aria-label="Gérer les flux">⚙️</button>
                 </div>
@@ -711,11 +711,8 @@ def home():
             }
 
             function resetView(){
-                // On réinitialise juste l'affichage principal
                 currentData = null; document.getElementById('saveBtn').style.display='none';
                 document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
-                
-                // Note : On appelle explicitement loadSavedLinks dans le "onchange" du select
             }
 
             async function fetchRandomArticle(){
@@ -778,7 +775,6 @@ def home():
                 ul.innerHTML = `<li class="list-item" style="justify-content:center; font-style:italic; color:var(--text-sub);">${getTrans('msg_updating')}</li>`;
                 
                 try {
-                    // CORRECTION : On envoie bien la catégorie au backend pour filtrer
                     const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
                     const l = await r.json();
                     ul.innerHTML = ''; // On vide le message de chargement
