@@ -4,8 +4,10 @@ feedparser
 beautifulsoup4
 python-dotenv
 gunicorn
+psycopg2
 # Nouvelles dépendances de sécurité :
 flask-wtf
 flask-limiter
 requests
 email_validator
+
