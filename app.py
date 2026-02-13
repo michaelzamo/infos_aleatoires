@@ -385,7 +385,8 @@ def home():
                     btn_export: "⬇️ Export (Tout)", btn_import: "⬆️ Import (Tout)", msg_imp_success: "Importation terminée !",
                     btn_test_cat: "🧪 Tester ces flux", msg_test_load: "Test en cours...",
                     mode_text: "(Articles)", mode_audio: "(Podcasts)",
-                    tab_articles: "Articles", tab_podcasts: "Podcasts"
+                    tab_articles: "Articles", tab_podcasts: "Podcasts",
+                    msg_updating: "Actualisation..."
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal", lbl_cat:"CATEGORY",
@@ -398,7 +399,8 @@ def home():
                     btn_export: "⬇️ Export (Full)", btn_import: "⬆️ Import (Full)", msg_imp_success: "Import complete!",
                     btn_test_cat: "🧪 Test feeds", msg_test_load: "Testing...",
                     mode_text: "(Articles)", mode_audio: "(Podcasts)",
-                    tab_articles: "Articles", tab_podcasts: "Podcasts"
+                    tab_articles: "Articles", tab_podcasts: "Podcasts",
+                    msg_updating: "Updating..."
                 },
                 es: {
                     app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal", lbl_cat:"CATEGORÍA",
@@ -411,7 +413,8 @@ def home():
                     btn_export: "⬇️ Exportar", btn_import: "⬆️ Importar", msg_imp_success: "¡Importación completada!",
                     btn_test_cat: "🧪 Probar", msg_test_load: "Probando...",
                     mode_text: "(Artículos)", mode_audio: "(Podcasts)",
-                    tab_articles: "Artículos", tab_podcasts: "Podcasts"
+                    tab_articles: "Artículos", tab_podcasts: "Podcasts",
+                    msg_updating: "Actualizando..."
                 },
                 jp: {
                     app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常", lbl_cat:"カテゴリ",
@@ -424,7 +427,8 @@ def home():
                     btn_export: "⬇️ 輸出", btn_import: "⬆️ 輸入", msg_imp_success: "完了！",
                     btn_test_cat: "🧪 テスト", msg_test_load: "テスト中...",
                     mode_text: "(記事)", mode_audio: "(ポッドキャスト)",
-                    tab_articles: "記事", tab_podcasts: "ポッドキャスト"
+                    tab_articles: "記事", tab_podcasts: "ポッドキャスト",
+                    msg_updating: "更新中..."
                 }
             };
 
@@ -478,6 +482,7 @@ def home():
                     });
                 }
                 
+                // On appelle loadSavedLinks UNIQUEMENT quand le select est prêt
                 loadSavedLinks();
                 
                 if(document.getElementById('managerSection').style.display === 'block') {
@@ -502,7 +507,9 @@ def home():
             function changeLanguage(){ 
                 const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); 
                 document.getElementById('manModeLabel').textContent = getTrans(currentMediaType === 'text' ? 'mode_text' : 'mode_audio');
-                resetView(); 
+                resetView();
+                // IMPORTANT: On force le rechargement de la liste filtrée après le changement de langue
+                loadSavedLinks();
                 if(document.getElementById('managerSection').style.display === 'block') populateManagerSelect();
             }
             
@@ -704,9 +711,11 @@ def home():
             }
 
             function resetView(){
+                // On réinitialise juste l'affichage principal
                 currentData = null; document.getElementById('saveBtn').style.display='none';
                 document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
-                loadSavedLinks();
+                
+                // Note : On appelle explicitement loadSavedLinks dans le "onchange" du select
             }
 
             async function fetchRandomArticle(){
@@ -762,19 +771,28 @@ def home():
             }
             
             async function loadSavedLinks(){
-                // CORRECTION : Réintégration du filtre par catégorie
                 const cat = document.getElementById('categorySelect').value;
-                const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
-                const l = await r.json();
                 const ul = document.getElementById('savedList');
-                ul.innerHTML = '';
-                l.forEach(i => {
-                    let icon = i.media_type === 'audio' ? '🎧 ' : '';
-                    ul.innerHTML += `<li class="list-item">
-                        <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${icon}${i.title}</a>
-                        <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')" aria-label="Supprimer">🗑</button>
-                    </li>`;
-                });
+                
+                // Affiche le message d'attente
+                ul.innerHTML = `<li class="list-item" style="justify-content:center; font-style:italic; color:var(--text-sub);">${getTrans('msg_updating')}</li>`;
+                
+                try {
+                    // CORRECTION : On envoie bien la catégorie au backend pour filtrer
+                    const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
+                    const l = await r.json();
+                    ul.innerHTML = ''; // On vide le message de chargement
+                    
+                    l.forEach(i => {
+                        let icon = i.media_type === 'audio' ? '🎧 ' : '';
+                        ul.innerHTML += `<li class="list-item">
+                            <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${icon}${i.title}</a>
+                            <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')" aria-label="Supprimer">🗑</button>
+                        </li>`;
+                    });
+                } catch(e) {
+                     ul.innerHTML = `<li class="list-item">Erreur</li>`;
+                }
             }
             async function deleteSaved(url){
                 if(confirm(getTrans('msg_confirm'))) {
