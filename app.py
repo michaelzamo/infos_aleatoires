@@ -762,6 +762,7 @@ def home():
             }
             
             async function loadSavedLinks(){
+                // CORRECTION ICI: Récupération de la catégorie sélectionnée pour le filtre
                 const cat = document.getElementById('categorySelect').value;
                 const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
                 const l = await r.json();
