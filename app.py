@@ -347,7 +347,7 @@ def home():
                 
                 <div class="cat-row">
                     <label for="categorySelect" style="font-weight:bold; font-size:0.8em; color:var(--text-sub);" data-i18n="lbl_cat">CATÉGORIE</label>
-                    <select id="categorySelect" class="cat-select" onchange="resetView(); loadSavedLinks()" aria-label="Choisir catégorie">
+                    <select id="categorySelect" class="cat-select" onchange="resetView()" aria-label="Choisir catégorie">
                     </select>
                     <button class="btn-manage" onclick="toggleManager()" title="Gérer" aria-label="Gérer les flux">⚙️</button>
                 </div>
@@ -478,7 +478,6 @@ def home():
                     });
                 }
                 
-                // On appelle loadSavedLinks UNIQUEMENT quand le select est prêt
                 loadSavedLinks();
                 
                 if(document.getElementById('managerSection').style.display === 'block') {
@@ -503,9 +502,7 @@ def home():
             function changeLanguage(){ 
                 const l = document.getElementById('langSelect').value; applyLanguage(l); localStorage.setItem('appLang', l); 
                 document.getElementById('manModeLabel').textContent = getTrans(currentMediaType === 'text' ? 'mode_text' : 'mode_audio');
-                resetView();
-                // IMPORTANT: On force le rechargement de la liste filtrée après le changement de langue
-                loadSavedLinks();
+                resetView(); 
                 if(document.getElementById('managerSection').style.display === 'block') populateManagerSelect();
             }
             
@@ -707,10 +704,9 @@ def home():
             }
 
             function resetView(){
-                // On réinitialise juste l'affichage principal
                 currentData = null; document.getElementById('saveBtn').style.display='none';
                 document.getElementById('content').innerHTML = '<p>'+getTrans('intro_text')+'</p>';
-                // Note : On NE recharge PLUS la liste ici pour éviter les effets de bord
+                loadSavedLinks();
             }
 
             async function fetchRandomArticle(){
@@ -766,6 +762,7 @@ def home():
             }
             
             async function loadSavedLinks(){
+                // CORRECTION : Réintégration du filtre par catégorie
                 const cat = document.getElementById('categorySelect').value;
                 const r = await fetch(`/api/saved-links?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
                 const l = await r.json();
@@ -864,6 +861,7 @@ def api_get_config():
 @app.route('/api/feeds/get_all')
 @requires_auth
 def get_all_feeds():
+    # Retourne la config texte par défaut pour compatibilité
     return jsonify(get_config_by_type('text'))
 
 # --- EXPORT / IMPORT ---
@@ -978,6 +976,7 @@ def manage_feeds():
                 db.session.commit()
                 
         elif action == 'del_url':
+            # On supprime bien le flux correspondant (URL unique + catégorie)
             Feed.query.filter_by(category_name=cat, url=url).delete()
             db.session.commit()
             
