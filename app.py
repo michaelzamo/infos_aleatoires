@@ -70,7 +70,7 @@ def add_security_headers(response):
     # Autorise: Scripts locaux, Styles inline (nécessaire pour votre UI), Images/Audio externes (pour les flux)
     response.headers['Content-Security-Policy'] = (
         "default-src 'self'; "
-        "script-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "  # <--- AJOUTEZ 'unsafe-inline' ICI
         "style-src 'self' 'unsafe-inline'; "
         "img-src 'self' data: https:; "
         "media-src 'self' https:; "
@@ -435,3 +435,4 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
+
