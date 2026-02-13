@@ -109,14 +109,11 @@ def sanitize_category_name(name):
     return clean.strip()[:100]
 
 def get_config_by_type(m_type):
-    # 1. On récupère toutes les catégories de base
     all_cats = Category.query.order_by(Category.name).all()
     
-    # 2. On détermine les flux "cibles" (ceux qu'on veut voir)
     target_feeds = Feed.query.filter_by(media_type=m_type).all()
     target_cat_names = set(f.category_name for f in target_feeds)
     
-    # 3. On détermine les flux "autres" (ceux qu'on veut cacher)
     other_type = 'audio' if m_type == 'text' else 'text'
     other_feeds = Feed.query.filter_by(media_type=other_type).all()
     other_cat_names = set(f.category_name for f in other_feeds)
@@ -349,7 +346,7 @@ def home():
                 </div>
                 
                 <div class="cat-row">
-                    <label for="categorySelect" class="visually-hidden">Catégorie</label>
+                    <label for="categorySelect" style="font-weight:bold; font-size:0.8em; color:var(--text-sub);" data-i18n="lbl_cat">CATÉGORIE</label>
                     <select id="categorySelect" class="cat-select" onchange="resetView()" aria-label="Choisir catégorie">
                     </select>
                     <button class="btn-manage" onclick="toggleManager()" title="Gérer" aria-label="Gérer les flux">⚙️</button>
@@ -378,7 +375,7 @@ def home():
             
             const translations = {
                 fr: {
-                    app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale",
+                    app_title: "Sérendipité", lbl_lang:"LANGUE", lbl_vision:"VISION", lbl_size:"TAILLE", vision_norm:"Normale", lbl_cat:"CATÉGORIE",
                     intro_text:"Cliquez pour découvrir.", btn_surprise:"Surprends-moi", btn_save:"💾 Sauvegarder", btn_read:"Lire l'article", btn_listen:"🎧 Écouter",
                     lbl_saved:"Sauvegardes", man_title:"Gestion", btn_add:"Ajouter",
                     msg_loading:"Recherche...", status_ok:"OK", status_err:"ERREUR", msg_confirm: "Confirmer la suppression ?",
@@ -390,7 +387,7 @@ def home():
                     mode_text: "(Articles)", mode_audio: "(Podcasts)"
                 },
                 en: {
-                    app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal",
+                    app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal", lbl_cat:"CATEGORY",
                     intro_text:"Click to discover.", btn_surprise:"Surprise me", btn_save:"💾 Save", btn_read:"Read article", btn_listen:"🎧 Listen",
                     lbl_saved:"Saved", man_title:"Manager", btn_add:"Add",
                     msg_loading:"Searching...", status_ok:"OK", status_err:"ERR", msg_confirm: "Confirm deletion?",
@@ -402,7 +399,7 @@ def home():
                     mode_text: "(Articles)", mode_audio: "(Podcasts)"
                 },
                 es: {
-                    app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal",
+                    app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal", lbl_cat:"CATEGORÍA",
                     intro_text:"Descubrir.", btn_surprise:"Sorpréndeme", btn_save:"💾 Guardar", btn_read:"Leer", btn_listen:"🎧 Escuchar",
                     lbl_saved:"Guardados", man_title:"Gestión", btn_add:"Añadir",
                     msg_loading:"Buscando...", status_ok:"OK", status_err:"ERR", msg_confirm: "¿Confirmar?",
@@ -414,7 +411,7 @@ def home():
                     mode_text: "(Artículos)", mode_audio: "(Podcasts)"
                 },
                 jp: {
-                    app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常",
+                    app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常", lbl_cat:"カテゴリ",
                     intro_text:"発見する。", btn_surprise:"驚かせて", btn_save:"💾 保存", btn_read:"読む", btn_listen:"🎧 聞く",
                     lbl_saved:"保存リスト", man_title:"管理", btn_add:"追加",
                     msg_loading:"検索中...", status_ok:"有効", status_err:"エラー", msg_confirm: "削除しますか？",
@@ -731,7 +728,6 @@ def home():
                     let actionBtn = '';
                     
                     if (currentMediaType === 'audio' && d.audio_url) {
-                        // FIX: suppression de l'autoplay ici aussi
                         mediaHtml = `<audio controls><source src="${d.audio_url}" type="audio/mpeg">Votre navigateur ne supporte pas l'audio.</audio>`;
                         actionBtn = `<a href="${d.link}" target="_blank" class="btn btn-read">${getTrans('btn_listen')} (Site)</a>`;
                     } else {
