@@ -269,10 +269,10 @@ def home():
         <div class="card">
             <div class="tabs" role="tablist">
                 <button class="tab active" id="tab-text" onclick="switchMode('text')" role="tab" aria-selected="true" aria-controls="panel-content">
-                    📰 Articles
+                    📰 <span data-i18n="tab_articles">Articles</span>
                 </button>
                 <button class="tab" id="tab-audio" onclick="switchMode('audio')" role="tab" aria-selected="false" aria-controls="panel-content">
-                    🎧 Podcasts
+                    🎧 <span data-i18n="tab_podcasts">Podcasts</span>
                 </button>
             </div>
 
@@ -384,7 +384,8 @@ def home():
                     msg_sel_cat:"Sélectionnez une catégorie", msg_bad_url:"L'URL doit commencer par http:// ou https://",
                     btn_export: "⬇️ Export (Tout)", btn_import: "⬆️ Import (Tout)", msg_imp_success: "Importation terminée !",
                     btn_test_cat: "🧪 Tester ces flux", msg_test_load: "Test en cours...",
-                    mode_text: "(Articles)", mode_audio: "(Podcasts)"
+                    mode_text: "(Articles)", mode_audio: "(Podcasts)",
+                    tab_articles: "Articles", tab_podcasts: "Podcasts"
                 },
                 en: {
                     app_title: "Serendipity", lbl_lang:"LANGUAGE", lbl_vision:"VISION", lbl_size:"SIZE", vision_norm:"Normal", lbl_cat:"CATEGORY",
@@ -396,7 +397,8 @@ def home():
                     msg_sel_cat:"Select a category", msg_bad_url:"URL must start with http:// or https://",
                     btn_export: "⬇️ Export (Full)", btn_import: "⬆️ Import (Full)", msg_imp_success: "Import complete!",
                     btn_test_cat: "🧪 Test feeds", msg_test_load: "Testing...",
-                    mode_text: "(Articles)", mode_audio: "(Podcasts)"
+                    mode_text: "(Articles)", mode_audio: "(Podcasts)",
+                    tab_articles: "Articles", tab_podcasts: "Podcasts"
                 },
                 es: {
                     app_title: "Serendipia", lbl_lang:"IDIOMA", lbl_vision:"VISIÓN", lbl_size:"TAMAÑO", vision_norm:"Normal", lbl_cat:"CATEGORÍA",
@@ -408,7 +410,8 @@ def home():
                     msg_sel_cat:"Seleccione una categoría", msg_bad_url:"La URL debe comenzar con http:// o https://",
                     btn_export: "⬇️ Exportar", btn_import: "⬆️ Importar", msg_imp_success: "¡Importación completada!",
                     btn_test_cat: "🧪 Probar", msg_test_load: "Probando...",
-                    mode_text: "(Artículos)", mode_audio: "(Podcasts)"
+                    mode_text: "(Artículos)", mode_audio: "(Podcasts)",
+                    tab_articles: "Artículos", tab_podcasts: "Podcasts"
                 },
                 jp: {
                     app_title: "セレンディピティ", lbl_lang:"言語", lbl_vision:"色覚", lbl_size:"サイズ", vision_norm:"通常", lbl_cat:"カテゴリ",
@@ -420,7 +423,8 @@ def home():
                     msg_sel_cat:"カテゴリを選択", msg_bad_url:"URLはhttp://またはhttps://で",
                     btn_export: "⬇️ 輸出", btn_import: "⬆️ 輸入", msg_imp_success: "完了！",
                     btn_test_cat: "🧪 テスト", msg_test_load: "テスト中...",
-                    mode_text: "(記事)", mode_audio: "(ポッドキャスト)"
+                    mode_text: "(記事)", mode_audio: "(ポッドキャスト)",
+                    tab_articles: "記事", tab_podcasts: "ポッドキャスト"
                 }
             };
 
