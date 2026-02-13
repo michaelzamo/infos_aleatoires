@@ -1,7 +1,11 @@
 flask
 flask_sqlalchemy
-psycopg2-binary
 feedparser
 beautifulsoup4
 python-dotenv
 gunicorn
+# Nouvelles dépendances de sécurité :
+flask-wtf
+flask-limiter
+requests
+email_validator
