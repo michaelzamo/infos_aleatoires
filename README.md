@@ -1,125 +1,129 @@
-# 🎲 Sérendipité - Lecteur RSS Aléatoire & Accessible
+# Sérendipité 📰🎧
 
-**Sérendipité** est une application web légère basée sur Flask (Python) qui vous permet de redécouvrir vos flux RSS. Au lieu de présenter une liste infinie d'articles non lus, elle vous propose **un article au hasard** tiré de vos sources préférées, favorisant la découverte et la lecture sans distraction.
-
-L'application met un accent particulier sur l'**accessibilité** (modes daltoniens, taille de police) et la **sécurité**.
-
----
+**Sérendipité** est une application web minimaliste conçue pour la découverte aléatoire de contenus. Elle vous permet d'explorer des articles et des podcasts au hasard à partir d'une sélection de flux RSS triés par catégories. Sortez de votre bulle de filtres et laissez-vous surprendre !
 
 ## ✨ Fonctionnalités
 
-### 📖 Lecture & Découverte
-* **Article Aléatoire :** Tirage au sort d'un article parmi une catégorie de flux RSS.
-* **Sauvegarde :** Marquez des articles pour les lire plus tard (liste de lecture filtrable par catégorie).
-* **Aperçu :** Affiche la source, le titre et un résumé propre avant de visiter le lien.
-
-### ♿ Accessibilité & Confort
-* **Thèmes :** Mode Clair ☀️ et Mode Sombre 🌙.
-* **Daltonisme :** Modes adaptés pour la Protanopie, Deutéranopie, Tritanopie et l'Achromatopsie.
-* **Lisibilité :** Curseur pour ajuster la taille du texte en temps réel.
-* **Internationalisation :** Interface disponible en Français 🇫🇷, Anglais 🇬🇧, Espagnol 🇪🇸 et Japonais 🇯🇵.
-
-### ⚙️ Administration & Technique
-* **Gestionnaire de Flux :** Interface graphique (bouton ⚙️) pour ajouter/supprimer des catégories et des flux RSS.
-* **Diagnostics :** Outil pour tester la validité des flux et supprimer les liens morts.
-* **Persistance :** Aucune base de données complexe, tout est stocké dans des fichiers texte.
-
-### 🔒 Sécurité Avancée
-* **Authentification :** Protection par mot de passe via variables d'environnement.
-* **Anti-XSS :** Nettoyage des données pour prévenir l'injection de code.
-* **Anti-SSRF :** Protection contre les requêtes vers le réseau local ou les métadonnées cloud.
+* **Mode Double** : Basculez facilement entre la découverte d'articles (texte) et de podcasts (audio avec lecteur intégré).
+* **Surprends-moi** : Un bouton unique pour tirer au sort un contenu issu de la catégorie sélectionnée.
+* **Sauvegardes** : Mettez de côté vos découvertes préférées d'un simple clic pour y revenir plus tard. Les sauvegardes se mettent à jour instantanément selon la catégorie choisie.
+* **Gestionnaire d'administration** :
+    * Ajoutez, testez et supprimez des flux RSS et des catégories.
+    * Exportez et importez l'intégralité de votre base de données (catégories, flux, sauvegardes) au format JSON.
+* **Accessibilité (a11y) & Personnalisation** :
+    * **Thèmes** : Mode clair / Mode sombre.
+    * **Profils de vision** : Filtres adaptés au daltonisme (Protanopia, Deuteranopia, Tritanopia, Achromatopsia).
+    * **Taille du texte** : Ajustable dynamiquement.
+* **Internationalisation (i118n)** : Interface disponible en Français, Anglais, Espagnol et Japonais.
+* **Sécurité** : Accès protégé par une authentification HTTP basique.
 
 ---
 
-## 🚀 Installation
+## 🛠 Prérequis (Développement local)
 
-### Prérequis
-* Python 3.8 ou supérieur.
-* `pip` (gestionnaire de paquets Python).
+* **Python 3.8+**
+* **pip** (gestionnaire de paquets Python)
 
-### 1. Cloner ou télécharger le projet
-Placez le fichier `app.py` dans un dossier.
+---
 
-### 2. Installer les dépendances
-Créez un fichier nommé `requirements.txt` à la racine avec le contenu suivant :
-```text
-flask
-feedparser
-beautifulsoup4
-python-dotenv
-gunicorn
+## 🚀 Installation locale
+
+1. **Cloner le dépôt (ou télécharger les fichiers) :**
+   ```bash
+   git clone <votre-url-de-repo>
+   cd serendipite
+   ```
+
+2. **Créer et activer un environnement virtuel (recommandé) :**
+   ```bash
+   python -m venv venv
+   # Sous Linux/macOS :
+   source venv/bin/activate
+   # Sous Windows :
+   venv\Scripts\activate
+   ```
+
+3. **Installer les dépendances :**
+   Créez un fichier `requirements.txt` à la racine du projet contenant les lignes suivantes :
+   ```text
+   Flask==3.0.0
+   Flask-SQLAlchemy==3.1.1
+   feedparser==6.0.10
+   python-dotenv==1.0.0
+   beautifulsoup4==4.12.2
+   gunicorn==21.2.0
+   psycopg2-binary==2.9.9
+   ```
+   Puis installez-les via la commande :
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+---
+
+## ⚙️ Configuration (.env)
+
+L'application utilise des variables d'environnement pour gérer la sécurité et la base de données. Créez un fichier nommé `.env` à la racine du projet pour vos tests locaux :
+
+```env
+# Identifiants pour l'authentification HTTP basique
+ADMIN_USER=admin
+ADMIN_PASS=changezMoi123
+
+# URL de la base de données (Laissez vide pour utiliser SQLite en local)
+DATABASE_URL=
 ```
 
-Puis lancez l'installation dans votre terminal :
-```bash
-pip install -r requirements.txt
-```
+---
 
-### 3. Configurer la sécurité (Indispensable)
-Voir la section **"Configuration & Sécurité"** ci-dessous pour créer vos identifiants avant de lancer l'application.
+## 💻 Utilisation locale
 
-### 4. Lancer l'application
-```bash
-python app.py
-```
-L'application sera accessible à l'adresse : `http://localhost:5000`
+1. **Lancer le serveur de développement :**
+   ```bash
+   python app.py
+   ```
+2. **Accéder à l'application :**
+   Ouvrez votre navigateur web et allez sur : `http://localhost:5000`
+3. **Connexion :**
+   Entrez les identifiants définis dans votre fichier `.env`.
 
 ---
 
-## 🔐 Configuration & Sécurité (Important)
+## ☁️ Déploiement en production (Render + Neon)
 
-Pour sécuriser l'application, les identifiants ne sont **jamais** stockés dans le code source. Nous utilisons des variables d'environnement.
+Pour héberger l'application gratuitement sur internet, nous recommandons de combiner **Render** (pour l'hébergement du code) et **Neon** (pour la base de données PostgreSQL Serverless).
 
-### A. En développement (Sur votre ordinateur)
+Assurez-vous d'avoir poussé votre code (incluant `app.py` et `requirements.txt`) sur un dépôt GitHub ou GitLab.
 
-1.  Créez un fichier nommé **`.env`** (sans nom avant le point) à la racine du projet.
-2.  Ajoutez-y vos identifiants secrets :
-    ```ini
-    ADMIN_USER=admin
-    ADMIN_PASS=MonMotDePasseSecret123
-    ```
-3.  **Important :** Si vous utilisez Git, assurez-vous d'avoir un fichier `.gitignore` contenant la ligne `.env` pour ne jamais publier ce fichier sur Internet.
+### Étape 1 : Créer la base de données avec Neon.tech
+1. Créez un compte gratuit sur [Neon.tech](https://neon.tech/).
+2. Créez un nouveau projet (ex: `serendipite-db`).
+3. Sur le tableau de bord, copiez la chaîne de connexion (**Connection string**). Elle ressemble à ceci : 
+   `postgresql://utilisateur:motdepasse@ep-nom-aleatoire.eu-central-1.aws.neon.tech/neondb?sslmode=require`
 
-### B. En production (Render, Heroku, etc.)
+### Étape 2 : Déployer l'application web avec Render
+1. Créez un compte gratuit sur [Render](https://render.com/).
+2. Cliquez sur **New +** puis sélectionnez **Web Service**.
+3. Connectez votre compte GitHub/GitLab et sélectionnez le dépôt de votre projet.
+4. Configurez le service de la façon suivante :
+   * **Name** : `serendipite-app` (ou le nom de votre choix)
+   * **Region** : Choisissez la région la plus proche (ex: Frankfurt)
+   * **Environment** : `Python`
+   * **Build Command** : `pip install -r requirements.txt`
+   * **Start Command** : `gunicorn app:app` *(gunicorn est un serveur HTTP optimisé pour la production)*
+   * **Instance Type** : `Free`
+5. Dans la section **Environment Variables**, ajoutez les clés suivantes :
+   * `ADMIN_USER` : Le nom d'utilisateur de votre choix pour vous connecter.
+   * `ADMIN_PASS` : Un mot de passe sécurisé.
+   * `DATABASE_URL` : **Collez ici l'URL complète copiée depuis Neon à l'étape 1**.
+6. Cliquez sur **Create Web Service**. 
 
-Puisque le fichier `.env` n'est pas envoyé sur le serveur (pour des raisons de sécurité), vous devez configurer ces variables dans l'interface de votre hébergeur.
-
-1.  Allez dans les paramètres de votre application (Settings).
-2.  Cherchez la section **Environment Variables** (ou Config Vars).
-3.  Ajoutez deux variables :
-    * **Key:** `ADMIN_USER`  | **Value:** `admin`
-    * **Key:** `ADMIN_PASS`  | **Value:** `VotreMotDePasseComplexe`
-
----
-
-## 📂 Structure des fichiers
-
-* **`app.py`** : Le code source de l'application.
-* **`.env`** : Fichier contenant vos mots de passe (à créer, **ne pas partager**).
-* **`.gitignore`** : Liste des fichiers à ignorer par Git (doit contenir `.env`).
-* **`feeds.txt`** : Stocke la liste de vos flux RSS (généré automatiquement).
-* **`saved_links.txt`** : Stocke vos articles sauvegardés (généré automatiquement).
-* **`requirements.txt`** : Liste des dépendances Python.
+Render va télécharger vos fichiers, installer les dépendances et lancer l'application. Au bout de quelques minutes, votre application sera en ligne et accessible via une URL du type `https://serendipite-app.onrender.com`.
 
 ---
 
-## ☁️ Déploiement (Exemple sur Render)
+## 📦 Sauvegarde et Migration
 
-Cette application est "Cloud Ready".
-
-1.  Assurez-vous que votre fichier `requirements.txt` contient bien `gunicorn`.
-2.  Sur Render, créez un nouveau "Web Service".
-3.  Connectez votre dépôt GitHub.
-4.  Définissez la **Start Command** :
-    ```bash
-    gunicorn app:app
-    ```
-5.  N'oubliez pas de définir vos variables d'environnement (`ADMIN_USER` et `ADMIN_PASS`) dans l'onglet "Environment".
-
-> **⚠️ Note HTTPS :** En production, assurez-vous toujours d'accéder à votre site via **HTTPS** (le cadenas 🔒) pour que votre mot de passe soit chiffré lors de la connexion. Les hébergeurs comme Render l'activent par défaut.
-
----
-
-## 📄 Licence
-
-Ce projet est open-source. Sentez-vous libre de le modifier et de l'améliorer pour votre usage personnel.
+Grâce au bouton d'administration (⚙️) intégré à l'interface, vous pouvez à tout moment :
+* **Exporter** l'intégralité de vos flux, catégories et articles sauvegardés dans un fichier `.json`.
+* **Importer** ce même fichier pour restaurer votre configuration ou migrer vers une nouvelle instance (très utile après le passage de la base de données locale SQLite vers la base de données en ligne Neon PostgreSQL !).
