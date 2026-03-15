@@ -44,7 +44,7 @@
             max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;
         }
         
-        .card-content { padding: 2rem; }
+        .card-content { padding: 2rem; overflow: hidden; box-sizing: border-box; }
 
         .tabs { display: flex; width: 100%; border-bottom: 1px solid var(--select-border); }
         .tab { 
@@ -77,8 +77,9 @@
         
         .cat-row { display:flex; gap:10px; align-items:center; margin-bottom:15px; }
         .cat-select { 
-            flex-grow:1; padding:10px; border-radius:8px; border:1px solid var(--select-border); 
+            flex-grow:1; min-width:0; max-width:100%; padding:10px; border-radius:8px; border:1px solid var(--select-border); 
             background:var(--select-bg); color:var(--text-main); font-size: calc(16px * var(--font-scale));
+            overflow:hidden; text-overflow:ellipsis;
         }
         
         .btn-manage { background:none; border:none; cursor:pointer; color:var(--col-manage); padding:0 5px; font-size: calc(1.5em * var(--font-scale)); }
@@ -91,7 +92,7 @@
 
         #managerSection { display:none; border:1px solid var(--select-border); }
         .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; gap: 5px;}
-        .man-input { flex-grow:1; padding:5px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); }
+        .man-input { flex-grow:1; min-width:0; max-width:100%; padding:5px; border-radius:4px; border:1px solid var(--select-border); background:var(--select-bg); color:var(--text-main); overflow:hidden; text-overflow:ellipsis; }
         .btn-small { padding:5px 10px; border-radius:4px; border:none; cursor:pointer; color:white; font-size:0.8em; white-space: nowrap;}
         .btn-add { background:var(--col-success); }
         .btn-del { background:var(--col-error); }
