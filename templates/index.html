@@ -102,6 +102,23 @@
         .list-label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; margin-right:10px; flex-grow:1; text-align:left; }
         .source-tag { background:var(--tag-bg); padding:4px 10px; border-radius:20px; font-size:0.8em; font-weight:bold; color:var(--text-sub); }
         .test-indicator { margin-right: 5px; font-size: 1.2em; }
+
+        .btn-play-saved {
+            background: none; border: none; cursor: pointer;
+            font-size: 1.1em; padding: 0 4px; flex-shrink: 0;
+            line-height: 1;
+        }
+        .inline-player {
+            width: 100%; margin-top: 6px; display: block;
+        }
+        .list-item-wrap {
+            display: flex; flex-direction: column; width: 100%;
+            padding: 8px 0; border-bottom: 1px solid var(--select-border);
+            font-size: 0.9em;
+        }
+        .list-item-wrap .list-item-row {
+            display: flex; justify-content: space-between; align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -497,7 +514,7 @@
                 });
                 const json = await res.json();
                 if(json.success) {
-                    alert(getTrans('msg_imp_success') + "\\n" + json.msg);
+                    alert(getTrans('msg_imp_success') + "\n" + json.msg);
                     location.reload();
                 } else {
                     alert('Erreur: ' + (json.msg || 'Format invalide'));
@@ -615,7 +632,8 @@
                     category: currentData.category,
                     url: currentData.link || currentData.url, 
                     title: currentData.title,
-                    media_type: currentData.media_type
+                    media_type: currentData.media_type,
+                    audio_url: currentData.audio_url || null
                 })
             });
             loadSavedLinks();
@@ -633,16 +651,64 @@
                 ul.innerHTML = ''; 
                 
                 l.forEach(i => {
-                    let icon = i.media_type === 'audio' ? '🎧 ' : '';
-                    ul.innerHTML += `<li class="list-item">
-                        <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${icon}${i.title}</a>
+                    const li = document.createElement('li');
+                    li.className = 'list-item-wrap';
+
+                    // Ligne principale : bouton lecture (si audio) + lien titre + bouton suppression
+                    const row = document.createElement('div');
+                    row.className = 'list-item-row';
+
+                    let prefixHtml = '';
+                    if (i.media_type === 'audio') {
+                        if (i.audio_url) {
+                            prefixHtml = `<button class="btn-play-saved" onclick="playSavedAudio('${i.audio_url}', this)" aria-label="Écouter">▶️</button>`;
+                        } else {
+                            prefixHtml = `<span style="padding:0 4px; flex-shrink:0;">🎧</span>`;
+                        }
+                    }
+
+                    row.innerHTML = `
+                        ${prefixHtml}
+                        <a href="${i.url}" target="_blank" class="list-label" style="color:var(--col-primary)">${i.title}</a>
                         <button class="btn-small btn-del" onclick="deleteSaved('${i.url}')" aria-label="Supprimer">🗑</button>
-                    </li>`;
+                    `;
+                    li.appendChild(row);
+                    ul.appendChild(li);
                 });
             } catch(e) {
                  ul.innerHTML = `<li class="list-item">Erreur</li>`;
             }
         }
+
+        function playSavedAudio(audioUrl, btn) {
+            const li = btn.closest('li');
+
+            // Si un player est déjà ouvert sur cet item, on le ferme (toggle)
+            const existing = li.querySelector('audio.inline-player');
+            if (existing) {
+                existing.remove();
+                btn.textContent = '▶️';
+                return;
+            }
+
+            // Fermer tout autre player ouvert dans la liste
+            document.querySelectorAll('audio.inline-player').forEach(a => {
+                a.pause();
+                a.remove();
+                const otherBtn = a.closest('li')?.querySelector('.btn-play-saved');
+                if (otherBtn) otherBtn.textContent = '▶️';
+            });
+
+            // Créer et insérer le player sous la ligne du titre
+            const audio = document.createElement('audio');
+            audio.controls = true;
+            audio.className = 'inline-player';
+            audio.innerHTML = `<source src="${audioUrl}" type="audio/mpeg">`;
+            li.appendChild(audio);
+            btn.textContent = '⏹️';
+            audio.play();
+        }
+
         async function deleteSaved(url){
             if(confirm(getTrans('msg_confirm'))) {
                 await fetch('/api/delete', {

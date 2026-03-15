@@ -114,6 +114,7 @@ class SavedArticle(db.Model):
     url = db.Column(db.String(500), unique=True, nullable=False)
     title = db.Column(db.String(500))
     media_type = db.Column(db.String(20), default='text', nullable=False)
+    audio_url = db.Column(db.String(500), nullable=True)  # URL directe du fichier audio (podcasts)
 
 with app.app_context():
     db.create_all()
@@ -232,7 +233,7 @@ def get_full_export_data():
     feeds = Feed.query.all()
     feeds_list = [{"category": f.category_name, "url": f.url, "media_type": f.media_type} for f in feeds]
     saved = SavedArticle.query.all()
-    saved_list = [{"category": s.category, "url": s.url, "title": s.title, "media_type": s.media_type} for s in saved]
+    saved_list = [{"category": s.category, "url": s.url, "title": s.title, "media_type": s.media_type, "audio_url": s.audio_url} for s in saved]
     return {"feeds": feeds_list, "saved": saved_list}
 
 # ==========================================
@@ -367,7 +368,16 @@ def import_feeds():
                 url = item.get('url')
                 if sanitize_link(url) != "#":
                     if not SavedArticle.query.filter_by(url=url[:500]).first():
-                        db.session.add(SavedArticle(url=url[:500], title=item.get('title',''), category=item.get('category',''), media_type=item.get('media_type','text')))
+                        raw_audio = item.get('audio_url')
+                        audio_url_clean = sanitize_link(raw_audio) if raw_audio else None
+                        if audio_url_clean == "#": audio_url_clean = None
+                        db.session.add(SavedArticle(
+                            url=url[:500],
+                            title=item.get('title',''),
+                            category=item.get('category',''),
+                            media_type=item.get('media_type','text'),
+                            audio_url=audio_url_clean
+                        ))
                         count_saved += 1
         
         db.session.commit()
@@ -411,7 +421,16 @@ def api_save():
     if url_to_save == "#": return jsonify({"success": False})
     try:
         if not SavedArticle.query.filter_by(url=url_to_save).first():
-            db.session.add(SavedArticle(category=d.get('category','Général'), url=url_to_save, title=d.get('title',''), media_type=d.get('media_type','text')))
+            raw_audio = d.get('audio_url')
+            audio_url_clean = sanitize_link(raw_audio) if raw_audio else None
+            if audio_url_clean == "#": audio_url_clean = None
+            db.session.add(SavedArticle(
+                category=d.get('category','Général'),
+                url=url_to_save,
+                title=d.get('title',''),
+                media_type=d.get('media_type','text'),
+                audio_url=audio_url_clean
+            ))
             db.session.commit()
         return jsonify({"success": True})
     except: return jsonify({"success": False})
@@ -425,7 +444,7 @@ def api_list_saved():
     if cat and cat != '---': query = query.filter_by(category=cat)
     if m_type: query = query.filter_by(media_type=m_type)
     links = query.all()
-    return jsonify([{'category':l.category, 'url':l.url, 'title':l.title, 'media_type':l.media_type} for l in links])
+    return jsonify([{'category':l.category, 'url':l.url, 'title':l.title, 'media_type':l.media_type, 'audio_url':l.audio_url} for l in links])
 
 @app.route('/api/delete', methods=['POST'])
 @requires_auth
@@ -438,5 +457,3 @@ def api_delete():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
-
-
