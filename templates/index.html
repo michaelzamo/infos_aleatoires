@@ -57,13 +57,15 @@
         .tab.active { color: var(--col-primary); border-bottom: 3px solid var(--col-primary); }
         
         .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-        .theme-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; border-radius: 50%;}
+        .header-icons { display: flex; gap: 4px; align-items: center; }
+        .theme-toggle, .settings-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; border-radius: 50%; }
 
         .settings-container, #managerSection {
-            display:flex; flex-direction:column; gap:10px; margin-bottom:20px; 
+            display:none; flex-direction:column; gap:10px; margin-bottom:20px; 
             background:var(--tag-bg); padding:10px; border-radius:8px;
             font-size: calc(16px * var(--font-scale)) !important; 
         }
+        .settings-container.open { display: flex; }
         .settings-container *, #managerSection * { font-size: 1em; }
         button, select, input { font-size: 1em; }
         
@@ -96,8 +98,8 @@
             background: var(--bg-card);
         }
         .zone-content  { height: 200px; }
-        .zone-actions  { height: 100px; display: flex; flex-direction: column; justify-content: center; gap: 8px; overflow: hidden; }
-        .zone-saved    { height: 200px; }
+        .zone-actions  { height: 200px; display: flex; flex-direction: column; justify-content: center; gap: 8px; overflow: hidden; }
+        .zone-saved    { height: 200px; margin-bottom: 0; }
 
         .zone-label {
             font-size: 0.75em; font-weight: bold; color: var(--text-sub);
@@ -161,7 +163,10 @@
         <div class="card-content" id="panel-content" role="tabpanel">
             <div class="header-row">
                 <h1 data-i18n="app_title">Sérendipité</h1>
-                <button class="theme-toggle" onclick="toggleTheme()" aria-label="Changer le thème"><span aria-hidden="true">🌓</span></button>
+                <div class="header-icons">
+                    <button class="settings-toggle" onclick="toggleSettings()" aria-label="Paramètres"><span aria-hidden="true">⚙️</span></button>
+                    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Changer le thème"><span aria-hidden="true">🌓</span></button>
+                </div>
             </div>
 
             <div class="settings-container">
@@ -390,6 +395,9 @@
         function toggleTheme(){ 
             document.body.classList.toggle('dark-mode'); 
             localStorage.setItem('theme', document.body.classList.contains('dark-mode')?'dark':'light');
+        }
+        function toggleSettings(){
+            document.querySelector('.settings-container').classList.toggle('open');
         }
         function changeColorProfile(){ 
             const p = document.getElementById('colorBlindSelect').value; applyColorProfile(p); localStorage.setItem('colorProfile', p); 
