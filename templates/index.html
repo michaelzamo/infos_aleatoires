@@ -135,10 +135,12 @@
             border-radius: 2px; cursor: pointer; position: relative;
         }
         .cp-bar-wrap.disabled { cursor: default; opacity: 0.4; }
-        .cp-bar-fill {
-            height: 100%; background: var(--col-primary);
-            border-radius: 2px; width: 0%; pointer-events: none;
+        .cp-skip {
+            background: none; border: none; cursor: pointer;
+            color: var(--col-primary); font-size: 0.8em; flex-shrink: 0;
+            padding: 0 2px; line-height: 1;
         }
+        .cp-skip:disabled { opacity: 0.4; cursor: not-allowed; }
 
         #managerSection { display:none; border:1px solid var(--select-border); }
         .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; gap: 5px;}
@@ -274,11 +276,13 @@
                     <audio id="mainAudio"></audio>
                     <div class="custom-player" id="mainPlayer">
                         <button class="cp-playpause" id="mainPlayPause" disabled onclick="toggleMainPlay()" aria-label="Lecture/Pause">▶</button>
+                        <button class="cp-skip" id="mainSkipBack" disabled onclick="skipMain(-10)" aria-label="Reculer 10s">⏮ 10s</button>
                         <span class="cp-time" id="mainElapsed">0:00</span>
                         <div class="cp-bar-wrap disabled" id="mainBarWrap" onclick="seekMain(event)">
                             <div class="cp-bar-fill" id="mainBarFill"></div>
                         </div>
                         <span class="cp-time right" id="mainRemaining">-0:00</span>
+                        <button class="cp-skip" id="mainSkipFwd" disabled onclick="skipMain(10)" aria-label="Avancer 10s">10s ⏭</button>
                     </div>
                 </div>
                 <div class="action-row">
@@ -667,6 +671,8 @@
             mainAudio.load();
             document.getElementById('mainPlayPause').disabled = true;
             document.getElementById('mainPlayPause').textContent = '▶';
+            document.getElementById('mainSkipBack').disabled = true;
+            document.getElementById('mainSkipFwd').disabled = true;
             document.getElementById('mainElapsed').textContent = '0:00';
             document.getElementById('mainRemaining').textContent = '-0:00';
             document.getElementById('mainBarFill').style.width = '0%';
@@ -711,6 +717,8 @@
                     mainAudio.src = d.audio_url;  // src direct sur l'élément, jamais via <source>
                     mainAudio.load();
                     document.getElementById('mainPlayPause').disabled = false;
+                    document.getElementById('mainSkipBack').disabled = false;
+                    document.getElementById('mainSkipFwd').disabled = false;
                     document.getElementById('mainBarWrap').classList.remove('disabled');
                 }
 
@@ -829,6 +837,11 @@
             }
         }
 
+        function skipMain(seconds) {
+            if (!mainAudio.duration) return;
+            mainAudio.currentTime = Math.max(0, Math.min(mainAudio.duration, mainAudio.currentTime + seconds));
+        }
+
         function seekMain(e) {
             if (!mainAudio.duration) return;
             const rect = e.currentTarget.getBoundingClientRect();
@@ -863,7 +876,24 @@
             remaining.className = 'cp-time right';
             remaining.textContent = '-0:00';
 
-            wrap.append(playBtn, elapsed, barWrap, remaining);
+            const skipBack = document.createElement('button');
+            skipBack.className = 'cp-skip';
+            skipBack.textContent = '⏮ 10s';
+            skipBack.setAttribute('aria-label', 'Reculer 10s');
+
+            const skipFwd = document.createElement('button');
+            skipFwd.className = 'cp-skip';
+            skipFwd.textContent = '10s ⏭';
+            skipFwd.setAttribute('aria-label', 'Avancer 10s');
+
+            wrap.append(playBtn, skipBack, elapsed, barWrap, remaining, skipFwd);
+
+            skipBack.onclick = () => {
+                if (audio.duration) audio.currentTime = Math.max(0, audio.currentTime - 10);
+            };
+            skipFwd.onclick = () => {
+                if (audio.duration) audio.currentTime = Math.min(audio.duration, audio.currentTime + 10);
+            };
 
             playBtn.onclick = () => {
                 if (audio.paused) { audio.play(); playBtn.textContent = '⏸'; }
