@@ -665,8 +665,11 @@
             // Masquer le lecteur audio en mode texte, le montrer en mode audio (sans source)
             const audioPlayerRow = document.getElementById('audioPlayerRow');
             mainAudio.pause();
-            document.getElementById('mainAudioSrc').src = '';
-            mainAudio.load();
+            const srcEl = document.getElementById('mainAudioSrc');
+            if (srcEl.src) {
+                srcEl.removeAttribute('src');
+                mainAudio.load();
+            }
             document.getElementById('mainPlayPause').disabled = true;
             document.getElementById('mainPlayPause').textContent = '▶';
             document.getElementById('mainElapsed').textContent = '0:00';
