@@ -623,12 +623,13 @@
             readBtn.setAttribute('aria-disabled','true');
             readBtn.textContent = getTrans(currentMediaType === 'audio' ? 'btn_listen' : 'btn_read');
             document.getElementById('saveBtn').disabled = true;
-            // Masquer le lecteur audio
-            document.getElementById('audioPlayerRow').style.display = 'none';
+            // Masquer le lecteur audio en mode texte, le montrer en mode audio (sans source)
+            const audioPlayerRow = document.getElementById('audioPlayerRow');
             const audioEl = document.getElementById('mainAudio');
             audioEl.pause();
             document.getElementById('mainAudioSrc').src = '';
             audioEl.load();
+            audioPlayerRow.style.display = currentMediaType === 'audio' ? 'block' : 'none';
         }
 
         async function fetchRandomArticle(){
@@ -642,7 +643,6 @@
             btn.disabled = true; btn.style.opacity = "0.7";
             readBtn.classList.add('disabled'); readBtn.setAttribute('aria-disabled','true');
             saveBtn.disabled = true;
-            document.getElementById('audioPlayerRow').style.display = 'none';
 
             try {
                 const r = await fetch(`/get-random?category=${encodeURIComponent(cat)}&media_type=${currentMediaType}`);
@@ -664,10 +664,11 @@
                 `;
 
                 // Lecteur audio (podcasts uniquement)
-                if (currentMediaType === 'audio' && d.audio_url) {
-                    document.getElementById('mainAudioSrc').src = d.audio_url;
-                    document.getElementById('mainAudio').load();
-                    document.getElementById('audioPlayerRow').style.display = 'block';
+                if (currentMediaType === 'audio') {
+                    if (d.audio_url) {
+                        document.getElementById('mainAudioSrc').src = d.audio_url;
+                        document.getElementById('mainAudio').load();
+                    }
                 }
 
                 // Bouton lire/écouter
