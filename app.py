@@ -93,7 +93,7 @@ app.config['MAX_CONTENT_LENGTH'] = 1 * 1024 * 1024  # 1MB Max Upload
 db = SQLAlchemy(app)
 
 # Timeout global socket (Défense en profondeur contre DoS réseau)
-socket.setdefaulttimeout(5)
+socket.setdefaulttimeout(15)
 
 # ==========================================
 # MODÈLES DE DONNÉES
@@ -268,12 +268,13 @@ def get_random():
     try:
         url = random.choice(urls)
         
-        # Fetch Sécurisé
-        content, error_msg = safe_fetch_rss(url)
+        # Fetch Sécurisé : valide l'URL puis laisse feedparser gérer le fetch
+        # (feedparser gère mieux la décompression gzip/br et les headers HTTP)
+        _, error_msg = safe_fetch_rss(url)
         if error_msg:
-             return jsonify({"error": f"Sécurité/Réseau : {error_msg}", "source": url})
+            return jsonify({"error": f"Sécurité/Réseau : {error_msg}", "source": url})
 
-        feed = feedparser.parse(content)
+        feed = feedparser.parse(url)
         if not feed.entries: return jsonify({"error": "Flux vide ou illisible", "source": url})
         
         art = random.choice(feed.entries)
