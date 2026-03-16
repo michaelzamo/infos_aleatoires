@@ -116,7 +116,29 @@
         .btn-read { background:var(--col-success); text-decoration:none; padding:8px 12px; border-radius:50px; color:white; font-weight:600; white-space:nowrap; font-size:0.9em; }
         .btn-read.disabled { opacity: 0.45; pointer-events: none; }
         
-        audio#mainAudio { width: 100%; margin-bottom: 4px; display: block; }
+        /* Lecteur audio personnalisé */
+        .custom-player {
+            display: flex; align-items: center; gap: 6px;
+            width: 100%; padding: 4px 2px; box-sizing: border-box;
+        }
+        .custom-player.inline { margin-top: 6px; }
+        .cp-playpause {
+            background: var(--col-primary); border: none; cursor: pointer;
+            color: white; border-radius: 50%; width: 28px; height: 28px;
+            font-size: 0.75em; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+        }
+        .cp-playpause:disabled { opacity: 0.4; cursor: not-allowed; }
+        .cp-time { font-size: 0.75em; color: var(--text-sub); white-space: nowrap; flex-shrink: 0; min-width: 34px; }
+        .cp-time.right { text-align: right; }
+        .cp-bar-wrap {
+            flex-grow: 1; height: 4px; background: var(--select-border);
+            border-radius: 2px; cursor: pointer; position: relative;
+        }
+        .cp-bar-wrap.disabled { cursor: default; opacity: 0.4; }
+        .cp-bar-fill {
+            height: 100%; background: var(--col-primary);
+            border-radius: 2px; width: 0%; pointer-events: none;
+        }
 
         #managerSection { display:none; border:1px solid var(--select-border); }
         .man-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:0.9em; gap: 5px;}
@@ -248,9 +270,16 @@
             <!-- ZONE MILIEU : lecteur audio + boutons -->
             <div class="zone zone-actions" id="actionsZone">
                 <div id="audioPlayerRow" style="display:none;">
-                    <audio id="mainAudio" controls style="width:100%; margin-bottom:4px;">
-                        <source id="mainAudioSrc" src="" type="audio/mpeg">
-                    </audio>
+                    <!-- Pas de <source> enfant : src assignée directement via JS pour éviter src="" -->
+                    <audio id="mainAudio"></audio>
+                    <div class="custom-player" id="mainPlayer">
+                        <button class="cp-playpause" id="mainPlayPause" disabled onclick="toggleMainPlay()" aria-label="Lecture/Pause">▶</button>
+                        <span class="cp-time" id="mainElapsed">0:00</span>
+                        <div class="cp-bar-wrap disabled" id="mainBarWrap" onclick="seekMain(event)">
+                            <div class="cp-bar-fill" id="mainBarFill"></div>
+                        </div>
+                        <span class="cp-time right" id="mainRemaining">-0:00</span>
+                    </div>
                 </div>
                 <div class="action-row">
                     <a id="readBtn" href="#" target="_blank" class="btn btn-read disabled" aria-disabled="true" data-i18n="btn_read">Lire l'article</a>
@@ -631,12 +660,18 @@
             readBtn.setAttribute('aria-disabled','true');
             readBtn.textContent = getTrans(currentMediaType === 'audio' ? 'btn_listen' : 'btn_read');
             document.getElementById('saveBtn').disabled = true;
-            const audioPlayerRow = document.getElementById('audioPlayerRow');
+            // Réinitialiser le lecteur sans assigner src (évite requête parasite)
             const mainAudio = document.getElementById('mainAudio');
             mainAudio.pause();
             mainAudio.removeAttribute('src');
             mainAudio.load();
-            audioPlayerRow.style.display = currentMediaType === 'audio' ? 'block' : 'none';
+            document.getElementById('mainPlayPause').disabled = true;
+            document.getElementById('mainPlayPause').textContent = '▶';
+            document.getElementById('mainElapsed').textContent = '0:00';
+            document.getElementById('mainRemaining').textContent = '-0:00';
+            document.getElementById('mainBarFill').style.width = '0%';
+            document.getElementById('mainBarWrap').classList.add('disabled');
+            document.getElementById('audioPlayerRow').style.display = currentMediaType === 'audio' ? 'block' : 'none';
         }
 
         async function fetchRandomArticle(){
@@ -673,8 +708,10 @@
                 // Lecteur audio (podcasts uniquement)
                 if (currentMediaType === 'audio' && d.audio_url) {
                     const mainAudio = document.getElementById('mainAudio');
-                    mainAudio.src = d.audio_url;
+                    mainAudio.src = d.audio_url;  // src direct sur l'élément, jamais via <source>
                     mainAudio.load();
+                    document.getElementById('mainPlayPause').disabled = false;
+                    document.getElementById('mainBarWrap').classList.remove('disabled');
                 }
 
                 // Bouton lire/écouter
@@ -753,34 +790,129 @@
             }
         }
 
+        // ==========================================
+        // LECTEUR AUDIO PERSONNALISÉ
+        // ==========================================
+
+        function fmtTime(sec) {
+            if (isNaN(sec) || !isFinite(sec)) return '0:00';
+            const s = Math.floor(sec);
+            return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+        }
+
+        // --- Lecteur principal (zone milieu) ---
+        const mainAudio = document.getElementById('mainAudio');
+
+        mainAudio.addEventListener('timeupdate', () => {
+            const elapsed = mainAudio.currentTime;
+            const duration = mainAudio.duration || 0;
+            document.getElementById('mainElapsed').textContent = fmtTime(elapsed);
+            document.getElementById('mainRemaining').textContent = '-' + fmtTime(duration - elapsed);
+            document.getElementById('mainBarFill').style.width = (duration ? elapsed / duration * 100 : 0) + '%';
+        });
+
+        mainAudio.addEventListener('loadedmetadata', () => {
+            document.getElementById('mainRemaining').textContent = '-' + fmtTime(mainAudio.duration);
+        });
+
+        mainAudio.addEventListener('ended', () => {
+            document.getElementById('mainPlayPause').textContent = '▶';
+        });
+
+        function toggleMainPlay() {
+            if (mainAudio.paused) {
+                mainAudio.play();
+                document.getElementById('mainPlayPause').textContent = '⏸';
+            } else {
+                mainAudio.pause();
+                document.getElementById('mainPlayPause').textContent = '▶';
+            }
+        }
+
+        function seekMain(e) {
+            if (!mainAudio.duration) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            mainAudio.currentTime = ((e.clientX - rect.left) / rect.width) * mainAudio.duration;
+        }
+
+        // --- Lecteur inline (sauvegardes) ---
+        function createInlinePlayer(audioUrl) {
+            // src assigné directement sur l'élément <audio>, jamais via <source>
+            const audio = document.createElement('audio');
+            audio.src = audioUrl;
+
+            const wrap = document.createElement('div');
+            wrap.className = 'custom-player inline';
+
+            const playBtn = document.createElement('button');
+            playBtn.className = 'cp-playpause';
+            playBtn.textContent = '▶';
+            playBtn.setAttribute('aria-label', 'Lecture/Pause');
+
+            const elapsed = document.createElement('span');
+            elapsed.className = 'cp-time';
+            elapsed.textContent = '0:00';
+
+            const barWrap = document.createElement('div');
+            barWrap.className = 'cp-bar-wrap';
+            const barFill = document.createElement('div');
+            barFill.className = 'cp-bar-fill';
+            barWrap.appendChild(barFill);
+
+            const remaining = document.createElement('span');
+            remaining.className = 'cp-time right';
+            remaining.textContent = '-0:00';
+
+            wrap.append(playBtn, elapsed, barWrap, remaining);
+
+            playBtn.onclick = () => {
+                if (audio.paused) { audio.play(); playBtn.textContent = '⏸'; }
+                else { audio.pause(); playBtn.textContent = '▶'; }
+            };
+            audio.addEventListener('loadedmetadata', () => {
+                remaining.textContent = '-' + fmtTime(audio.duration);
+            });
+            audio.addEventListener('timeupdate', () => {
+                const e2 = audio.currentTime, dur = audio.duration || 0;
+                elapsed.textContent = fmtTime(e2);
+                remaining.textContent = '-' + fmtTime(dur - e2);
+                barFill.style.width = (dur ? e2 / dur * 100 : 0) + '%';
+            });
+            audio.addEventListener('ended', () => { playBtn.textContent = '▶'; });
+            barWrap.addEventListener('click', ev => {
+                if (!audio.duration) return;
+                const rect = barWrap.getBoundingClientRect();
+                audio.currentTime = ((ev.clientX - rect.left) / rect.width) * audio.duration;
+            });
+
+            wrap._audio = audio;
+            return wrap;
+        }
+
         function playSavedAudio(audioUrl, btn) {
             const li = btn.closest('li');
 
             // Toggle : fermer si déjà ouvert
-            const existing = li.querySelector('audio.inline-player');
+            const existing = li.querySelector('.custom-player.inline');
             if (existing) {
-                existing.pause();
+                existing._audio.pause();
                 existing.remove();
                 btn.textContent = '▶️';
                 return;
             }
 
             // Fermer tout autre player ouvert
-            document.querySelectorAll('audio.inline-player').forEach(a => {
-                a.pause();
-                a.remove();
-                const ob = a.closest('li')?.querySelector('.btn-play-saved');
+            document.querySelectorAll('.custom-player.inline').forEach(p => {
+                p._audio.pause();
+                p.remove();
+                const ob = p.closest('li')?.querySelector('.btn-play-saved');
                 if (ob) ob.textContent = '▶️';
             });
 
-            const audio = document.createElement('audio');
-            audio.controls = true;
-            audio.className = 'inline-player';
-            audio.style.cssText = 'width:100%; margin-top:6px; display:block;';
-            audio.src = audioUrl;
-            li.appendChild(audio);
+            const player = createInlinePlayer(audioUrl);
+            li.appendChild(player);
             btn.textContent = '⏹️';
-            audio.play();
+            player._audio.play();
         }
 
         async function deleteSaved(url){
