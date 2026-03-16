@@ -44,7 +44,7 @@
             max-height: 90vh; overflow-y: auto; display: flex; flex-direction: column;
         }
         
-        .card-content { padding: 2rem; overflow: hidden; box-sizing: border-box; }
+        .card-content { padding: 0 0.5rem 2rem; overflow: hidden; box-sizing: border-box; }
 
         .tabs { display: flex; width: 100%; border-bottom: 1px solid var(--select-border); }
         .tab { 
@@ -56,7 +56,8 @@
         .tab:hover { background: var(--tag-bg); }
         .tab.active { color: var(--col-primary); border-bottom: 3px solid var(--col-primary); }
         
-        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; margin-top: 0.5rem; }
+        .header-row h1 { margin: 0; }
         .header-icons { display: flex; gap: 4px; align-items: center; }
         .theme-toggle, .settings-toggle { background: none; border: none; cursor: pointer; padding: 5px; font-size: 1.2em; border-radius: 50%; }
 
@@ -108,11 +109,11 @@
         }
 
         /* Boutons d'action */
-        .action-row { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
-        .btn { background:var(--col-primary); color:#fff; padding:10px 18px; border-radius:50px; border:none; font-weight:600; cursor:pointer; white-space:nowrap; }
+        .action-row { display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: nowrap; }
+        .btn { background:var(--col-primary); color:#fff; padding:8px 12px; border-radius:50px; border:none; font-weight:600; cursor:pointer; white-space:nowrap; font-size:0.9em; }
         .btn:disabled { opacity: 0.45; cursor: not-allowed; }
         .btn-save { background:var(--col-save); }
-        .btn-read { background:var(--col-success); text-decoration:none; padding:10px 18px; border-radius:50px; color:white; font-weight:600; white-space:nowrap; }
+        .btn-read { background:var(--col-success); text-decoration:none; padding:8px 12px; border-radius:50px; color:white; font-weight:600; white-space:nowrap; font-size:0.9em; }
         .btn-read.disabled { opacity: 0.45; pointer-events: none; }
         
         audio.main-player { width: 100%; margin-bottom: 4px; }
