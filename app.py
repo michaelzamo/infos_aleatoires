@@ -152,51 +152,53 @@ def requires_auth(f):
 def safe_fetch_rss(url):
     """
     Récupère le RSS de manière sécurisée.
-    Vérifie l'IP avant la requête pour éviter le SSRF,
-    mais utilise le nom de domaine pour la connexion (support SNI/Cloudflare).
+    Vérifie l'IP à chaque étape de redirection pour éviter le SSRF.
     """
     if not url: return None, "URL vide"
-    
+
+    def is_ip_safe(hostname):
+        try:
+            ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+            return not (ip.is_loopback or ip.is_private or ip.is_link_local)
+        except Exception:
+            return False
+
     try:
         parsed = urlparse(url)
         if parsed.scheme not in ('http', 'https'):
             return None, "Protocole invalide"
-        
-        hostname = parsed.hostname
-        
-        # 1. Résolution DNS & Vérification de sécurité (Anti-SSRF)
-        try:
-            ip_addr = socket.gethostbyname(hostname)
-        except socket.gaierror:
-            return None, "Domaine introuvable"
-        
-        # On interdit l'accès aux IPs locales/privées
-        ip = ipaddress.ip_address(ip_addr)
-        if ip.is_loopback or ip.is_private or ip.is_link_local:
-            return None, f"Accès interdit (IP locale détectée: {ip})"
-            
-        # 2. Requête HTTP Standard (avec protection Redirection)
-        # On utilise l'URL d'origine (avec le nom de domaine) pour que le SNI fonctionne.
-        # On garde allow_redirects=False pour empêcher le contournement de la vérification IP.
-        
+
+        if not is_ip_safe(parsed.hostname):
+            return None, "Accès interdit (IP locale ou domaine introuvable)"
+
         headers = {'User-Agent': 'Serendipite-RSS-Bot/1.0'}
-        
-        response = requests.get(
-            url,  # <--- On remet l'URL originale ici
-            headers=headers, 
-            timeout=5, 
-            verify=True, # On peut réactiver la vérification SSL car on utilise le bon domaine !
-            allow_redirects=False # CRITIQUE : On interdit toujours les redirections
+        session = requests.Session()
+
+        # Intercepter chaque redirection pour vérifier l'IP de destination
+        def check_redirect(r, *args, **kwargs):
+            if r.is_redirect:
+                next_url = r.headers.get('Location', '')
+                next_parsed = urlparse(next_url)
+                if next_parsed.hostname and not is_ip_safe(next_parsed.hostname):
+                    raise requests.exceptions.InvalidURL("Redirection vers IP locale interdite")
+
+        session.hooks['response'].append(check_redirect)
+
+        response = session.get(
+            url,
+            headers=headers,
+            timeout=10,
+            verify=True,
+            allow_redirects=True  # Autorisé, mais vérifié à chaque saut
         )
-        
-        if response.is_redirect:
-            return None, "Redirections interdites par sécurité (Anti-SSRF Bypass)"
 
         if response.status_code != 200:
             return None, f"Erreur HTTP {response.status_code}"
-            
+
         return response.content, None
 
+    except requests.exceptions.InvalidURL as e:
+        return None, f"Sécurité : {str(e)}"
     except Exception as e:
         return None, f"Erreur réseau: {str(e)}"
 
@@ -279,13 +281,13 @@ def get_random():
         if m_type == 'audio':
             if hasattr(art, 'enclosures'):
                 for enc in art.enclosures:
-                    if enc.type.startswith('audio'):
-                        audio_url = sanitize_link(enc.href)
+                    if enc.get('type') and enc.get('type').startswith('audio'):
+                        audio_url = sanitize_link(enc.get('href', ''))
                         break
             if not audio_url and hasattr(art, 'links'):
                 for link in art.links:
-                    if link.type and link.type.startswith('audio'):
-                        audio_url = sanitize_link(link.href)
+                    if link.get('type') and link.get('type').startswith('audio'):
+                        audio_url = sanitize_link(link.get('href', ''))
                         break
         
         return jsonify({
