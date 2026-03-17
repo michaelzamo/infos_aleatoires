@@ -216,6 +216,13 @@
                 </div>
             </div>
 
+            <div class="cat-row">
+                <label for="categorySelect" style="font-weight:bold; font-size:0.8em; color:var(--text-sub);" data-i18n="lbl_cat">CATÉGORIE</label>
+                <select id="categorySelect" class="cat-select" onchange="resetView(); loadSavedLinks()" aria-label="Choisir catégorie">
+                </select>
+                <button class="btn-manage" onclick="toggleManager()" title="Gérer" aria-label="Gérer les flux">⚙️</button>
+            </div>
+
             <div id="managerSection">
                 <div style="font-weight:bold; margin-bottom:10px; border-bottom:1px solid #ddd;" id="manTitle">
                     <span data-i18n="man_title">Gestion</span> <span id="manModeLabel">(Articles)</span>
@@ -253,15 +260,8 @@
                         <input type="text" id="newUrlInput" class="man-input" placeholder="http://..." data-i18n="ph_url" aria-label="URL flux">
                         <button class="btn-small btn-add" onclick="addUrlToCurrent()" data-i18n="btn_add_url">Ajouter URL</button>
                     </div>
-                    <div id="feedListContainer"></div>
+                    <div id="feedListContainer" style="max-height:180px; overflow-y:auto; scroll-behavior:smooth;"></div>
                 </div>
-            </div>
-            
-            <div class="cat-row">
-                <label for="categorySelect" style="font-weight:bold; font-size:0.8em; color:var(--text-sub);" data-i18n="lbl_cat">CATÉGORIE</label>
-                <select id="categorySelect" class="cat-select" onchange="resetView(); loadSavedLinks()" aria-label="Choisir catégorie">
-                </select>
-                <button class="btn-manage" onclick="toggleManager()" title="Gérer" aria-label="Gérer les flux">⚙️</button>
             </div>
 
             <!-- ZONE HAUT : titre + résumé -->
